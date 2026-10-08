@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Naija Streets</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+  <div id="game">
+
+    <div id="hud">
+      <div class="logo">🇳🇬 NAIJA STREETS</div>
+
+      <div class="stats">
+        <span>💰 ₦<span id="money">5000</span></span>
+        <span>⭐ <span id="respect">0</span></span>
+      </div>
+    </div>
+
+    <div id="location">
+      📍 Ilorin, Kwara State
+    </div>
+
+    <div id="message">
+      Welcome to Naija Streets!
+    </div>
+
+    <div id="world">
+
+      <div class="road horizontal"></div>
+      <div class="road vertical"></div>
+
+      <div class="building house">
+        🏠
+        <small>Your House</small>
+      </div>
+
+      <div class="building shop">
+        🏪
+        <small>Naija Shop</small>
+      </div>
+
+      <div class="market">
+        🛒
+        <small>Market</small>
+      </div>
+
+      <div id="player">🧍🏾‍♂️</div>
+      <div id="car">🚗</div>
+
+      <div class="npc npc1">🧍🏾</div>
+      <div class="npc npc2">🧍🏿</div>
+
+    </div>
+
+    <div id="mission">
+      <strong>MISSION</strong>
+      <p id="missionText">Drive to the Naija Shop.</p>
+      <button onclick="completeMission()">Complete Mission</button>
+    </div>
+
+    <div id="controls">
+      <button onclick="move('up')">⬆️</button>
+
+      <div>
+        <button onclick="move('left')">⬅️</button>
+        <button onclick="move('down')">⬇️</button>
+        <button onclick="move('right')">➡️</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+
+</body>
+</html>
