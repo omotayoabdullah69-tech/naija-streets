@@ -1,0 +1,2173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Naija Streets — Ilorin Post Office V3</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #87ceeb;
+  font-family: Arial, sans-serif;
+  touch-action: none;
+}
+
+canvas {
+  display: block;
+}
+
+#hud {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+#location {
+  display: inline-block;
+  padding: 9px 13px;
+  border-radius: 12px;
+  color: white;
+  background: rgba(0,0,0,.62);
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 3px 12px rgba(0,0,0,.25);
+}
+
+#hint {
+  position: fixed;
+  top: 58px;
+  left: 12px;
+  z-index: 20;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.78);
+  color: #222;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+#joystick {
+  position: fixed;
+  left: 24px;
+  bottom: 30px;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.25);
+  border: 2px solid rgba(255,255,255,.4);
+  z-index: 30;
+  touch-action: none;
+}
+
+#stick {
+  position: absolute;
+  width: 58px;
+  height: 58px;
+  left: 35px;
+  top: 35px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.78);
+  border: 2px solid rgba(0,0,0,.15);
+  box-shadow: 0 3px 12px rgba(0,0,0,.3);
+}
+
+#time {
+  position: fixed;
+  right: 12px;
+  top: 12px;
+  z-index: 20;
+  padding: 8px 11px;
+  border-radius: 10px;
+  color: white;
+  background: rgba(0,0,0,.55);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+#title {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  z-index: 20;
+  color: rgba(255,255,255,.75);
+  font-size: 10px;
+  pointer-events: none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="hud">
+  <div id="location">📍 Maraba → Post Office Flyover</div>
+</div>
+
+<div id="hint">
+  Move: joystick ↑↓ &nbsp; Turn: ←→
+</div>
+
+<div id="time">☀️ Day</div>
+
+<div id="joystick">
+  <div id="stick"></div>
+</div>
+
+<div id="title">NAIJA STREETS • ILORIN V3</div>
+
+<script type="module">
+
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+
+// ============================================================
+// BASIC SETUP
+// ============================================================
+
+const scene = new THREE.Scene();
+
+scene.background = new THREE.Color(0x87ceeb);
+
+scene.fog = new THREE.Fog(
+  0x87ceeb,
+  90,
+  430
+);
+
+const camera = new THREE.PerspectiveCamera(
+  62,
+  innerWidth / innerHeight,
+  0.1,
+  700
+);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: "high-performance"
+});
+
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(
+  Math.min(devicePixelRatio, 1.8)
+);
+
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+document.body.appendChild(renderer.domElement);
+
+
+// ============================================================
+// LIGHTING
+// ============================================================
+
+const hemi = new THREE.HemisphereLight(
+  0xbde9ff,
+  0x5d513f,
+  1.8
+);
+
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(
+  0xffffff,
+  2.4
+);
+
+sun.position.set(
+  -120,
+  180,
+  80
+);
+
+sun.castShadow = true;
+
+sun.shadow.mapSize.width = 1024;
+sun.shadow.mapSize.height = 1024;
+
+sun.shadow.camera.left = -180;
+sun.shadow.camera.right = 180;
+sun.shadow.camera.top = 180;
+sun.shadow.camera.bottom = -180;
+
+scene.add(sun);
+
+
+// ============================================================
+// MATERIAL HELPERS
+// ============================================================
+
+function mat(color) {
+
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: .85,
+    metalness: .05
+  });
+
+}
+
+const roadMat = mat(0x252525);
+const sidewalkMat = mat(0x777777);
+const concreteMat = mat(0xb9b9b9);
+
+const grassMat = mat(0x3d7438);
+
+const whiteMat = mat(0xffffff);
+const yellowMat = mat(0xf4c400);
+
+const redMat = mat(0xc9362b);
+const blueMat = mat(0x2364a2);
+const creamMat = mat(0xd9c59b);
+const brownMat = mat(0x75452c);
+const darkMat = mat(0x252525);
+const greenMat = mat(0x2e7044);
+
+
+// ============================================================
+// GROUND
+// ============================================================
+
+const ground = new THREE.Mesh(
+  new THREE.BoxGeometry(600, 1, 600),
+  grassMat
+);
+
+ground.position.y = -0.5;
+ground.receiveShadow = true;
+
+scene.add(ground);
+
+
+// ============================================================
+// BOX HELPER
+// ============================================================
+
+function box(
+  w,
+  h,
+  d,
+  material,
+  x,
+  y,
+  z
+) {
+
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    material
+  );
+
+  mesh.position.set(x, y, z);
+
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  scene.add(mesh);
+
+  return mesh;
+}
+
+
+// ============================================================
+// ROAD
+// ============================================================
+
+function road(
+  width,
+  length,
+  x,
+  z,
+  rotation = 0
+) {
+
+  const r = box(
+    width,
+    .12,
+    length,
+    roadMat,
+    x,
+    .06,
+    z
+  );
+
+  r.rotation.y = rotation;
+
+  return r;
+}
+
+
+// MAIN MURTALA MOHAMMED ROAD
+road(
+  30,
+  430,
+  0,
+  0
+);
+
+
+// SECOND COMMERCIAL ROAD
+road(
+  230,
+  24,
+  0,
+  -8,
+  0
+);
+
+
+// SIDE ROAD
+road(
+  22,
+  190,
+  -82,
+  65
+);
+
+
+// SIDE ROAD 2
+road(
+  22,
+  180,
+  82,
+  -65
+);
+
+
+// ============================================================
+// SIDEWALKS
+// ============================================================
+
+function sidewalk(x, z, w, d) {
+
+  box(
+    w,
+    .25,
+    d,
+    sidewalkMat,
+    x,
+    .14,
+    z
+  );
+
+}
+
+sidewalk(-20, 0, 4, 430);
+sidewalk(20, 0, 4, 430);
+
+sidewalk(-75, -8, 150, 4);
+sidewalk(75, -8, 150, 4);
+
+
+// ============================================================
+// ROAD MARKINGS
+// ============================================================
+
+function line(x, y, z, w, d, material = whiteMat) {
+
+  box(
+    w,
+    .025,
+    d,
+    material,
+    x,
+    y,
+    z
+  );
+
+}
+
+
+// Main road dashed centre
+for (let z = -205; z < 205; z += 15) {
+
+  line(
+    0,
+    .13,
+    z,
+    .35,
+    7,
+    yellowMat
+  );
+
+}
+
+
+// Lane markings
+for (let z = -205; z < 205; z += 14) {
+
+  line(
+    -7.5,
+    .135,
+    z,
+    .12,
+    6
+  );
+
+  line(
+    7.5,
+    .135,
+    z,
+    .12,
+    6
+  );
+
+}
+
+
+// ============================================================
+// FLYOVER
+//
+// LOWER ROAD REMAINS AT Y=0
+//
+// RAMP:
+// -85 → -55
+//
+// DECK:
+// -55 → +55
+//
+// EXIT:
+// +55 → +85
+// ============================================================
+
+const flyoverWidth = 15;
+
+const rampStart = 88;
+const deckStart = 55;
+const deckEnd = -55;
+
+const flyoverHeight = 8;
+
+
+// Sloped road segment helper
+function slopeRoad(
+  x,
+  z,
+  length,
+  height,
+  angle
+) {
+
+  const r = box(
+    flyoverWidth,
+    .65,
+    length,
+    roadMat,
+    x,
+    height,
+    z
+  );
+
+  r.rotation.x = angle;
+
+  return r;
+}
+
+
+// NORTH / POSITIVE Z RAMP
+const northRamp = slopeRoad(
+  0,
+  70,
+  32,
+  4,
+  -Math.atan(
+    flyoverHeight / 30
+  )
+);
+
+
+// SOUTH / NEGATIVE Z RAMP
+const southRamp = slopeRoad(
+  0,
+  -70,
+  32,
+  4,
+  Math.atan(
+    flyoverHeight / 30
+  )
+);
+
+
+// TOP DECK
+box(
+  flyoverWidth,
+  .65,
+  110,
+  roadMat,
+  0,
+  flyoverHeight,
+  0
+);
+
+
+// ============================================================
+// FLYOVER ROAD MARKINGS
+// ============================================================
+
+for (
+  let z = -50;
+  z <= 50;
+  z += 12
+) {
+
+  line(
+    0,
+    flyoverHeight + .36,
+    z,
+    .35,
+    6,
+    yellowMat
+  );
+
+}
+
+
+// ============================================================
+// FLYOVER GUARD RAILS
+// ============================================================
+
+function rail(x, z, length) {
+
+  box(
+    .45,
+    1.25,
+    length,
+    concreteMat,
+    x,
+    flyoverHeight + .75,
+    z
+  );
+
+}
+
+rail(
+  -8,
+  0,
+  110
+);
+
+rail(
+  8,
+  0,
+  110
+);
+
+
+// Ramp rail sections
+for (
+  let z = -78;
+  z <= -58;
+  z += 7
+) {
+
+  const h =
+    ((z + 88) / 30) * 8;
+
+  box(
+    .4,
+    1.2,
+    6,
+    concreteMat,
+    -8,
+    h + .75,
+    z
+  );
+
+  box(
+    .4,
+    1.2,
+    6,
+    concreteMat,
+    8,
+    h + .75,
+    z
+  );
+
+}
+
+for (
+  let z = 58;
+  z <= 78;
+  z += 7
+) {
+
+  const h =
+    ((88 - z) / 30) * 8;
+
+  box(
+    .4,
+    1.2,
+    6,
+    concreteMat,
+    -8,
+    h + .75,
+    z
+  );
+
+  box(
+    .4,
+    1.2,
+    6,
+    concreteMat,
+    8,
+    h + .75,
+    z
+  );
+
+}
+
+
+// ============================================================
+// FLYOVER SUPPORT COLUMNS
+// ============================================================
+
+for (
+  let z = -45;
+  z <= 45;
+  z += 18
+) {
+
+  box(
+    1.8,
+    8,
+    1.8,
+    concreteMat,
+    -6,
+    4,
+    z
+  );
+
+  box(
+    1.8,
+    8,
+    1.8,
+    concreteMat,
+    6,
+    4,
+    z
+  );
+
+}
+
+
+// ============================================================
+// STREET LIGHTS
+// ============================================================
+
+function streetLight(x, z, h = 7) {
+
+  box(
+    .18,
+    h,
+    .18,
+    darkMat,
+    x,
+    h / 2,
+    z
+  );
+
+  box(
+    2.5,
+    .15,
+    .15,
+    darkMat,
+    x + (x < 0 ? 1 : -1),
+    h,
+    z
+  );
+
+  const lamp = new THREE.Mesh(
+    new THREE.SphereGeometry(.3, 8, 8),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffcc,
+      emissive: 0xffff99,
+      emissiveIntensity: 1
+    })
+  );
+
+  lamp.position.set(
+    x + (x < 0 ? 1.2 : -1.2),
+    h - .15,
+    z
+  );
+
+  scene.add(lamp);
+
+}
+
+
+for (
+  let z = -180;
+  z <= 180;
+  z += 35
+) {
+
+  streetLight(-17, z);
+  streetLight(17, z);
+
+}
+
+
+// ============================================================
+// BUILDING FUNCTION
+// ============================================================
+
+function building(
+  name,
+  x,
+  z,
+  w,
+  h,
+  d,
+  color
+) {
+
+  const b = box(
+    w,
+    h,
+    d,
+    mat(color),
+    x,
+    h / 2,
+    z
+  );
+
+  // Roof
+  box(
+    w + .5,
+    .3,
+    d + .5,
+    darkMat,
+    x,
+    h + .15,
+    z
+  );
+
+  // Sign
+  const sign = box(
+    Math.min(w * .8, 12),
+    1.8,
+    .15,
+    whiteMat,
+    x,
+    Math.min(h - 1.5, 7),
+    z - d / 2 - .1
+  );
+
+  sign.userData.name = name;
+
+  // Door
+  box(
+    1.5,
+    2.5,
+    .15,
+    darkMat,
+    x,
+    1.25,
+    z - d / 2 - .18
+  );
+
+  // Windows
+  const rows = Math.max(
+    1,
+    Math.floor(h / 4)
+  );
+
+  for (
+    let row = 0;
+    row < rows;
+    row++
+  ) {
+
+    const y = 3 + row * 3;
+
+    if (y > h - 1) continue;
+
+    box(
+      1.6,
+      1.3,
+      .12,
+      blueMat,
+      x - w / 3,
+      y,
+      z - d / 2 - .16
+    );
+
+    box(
+      1.6,
+      1.3,
+      .12,
+      blueMat,
+      x + w / 3,
+      y,
+      z - d / 2 - .16
+    );
+
+  }
+
+  return b;
+
+}
+
+
+// ============================================================
+// GENERAL POST OFFICE
+// ============================================================
+
+building(
+  "GENERAL POST OFFICE",
+  -34,
+  12,
+  30,
+  14,
+  22,
+  0xd4b77a
+);
+
+
+// Post Office sign tower
+box(
+  8,
+  5,
+  1,
+  redMat,
+  -34,
+  17,
+  0
+);
+
+box(
+  7,
+  .8,
+  .3,
+  whiteMat,
+  -34,
+  17,
+  -1
+);
+
+
+// ============================================================
+// BANKS / OFFICES
+// ============================================================
+
+building(
+  "FCMB",
+  38,
+  28,
+  18,
+  11,
+  18,
+  0x5c5c5c
+);
+
+building(
+  "FIRST BANK",
+  40,
+  60,
+  22,
+  14,
+  20,
+  0xd8d0b8
+);
+
+building(
+  "BANK",
+  40,
+  91,
+  20,
+  10,
+  18,
+  0x8b9aaa
+);
+
+building(
+  "MTN OFFICE",
+  -38,
+  48,
+  18,
+  9,
+  17,
+  0xffcc00
+);
+
+building(
+  "CBN OFFICE",
+  -40,
+  82,
+  25,
+  15,
+  22,
+  0xb8b8b8
+);
+
+
+// ============================================================
+// KWARA STATE LIBRARY
+// ============================================================
+
+building(
+  "KWARA STATE LIBRARY",
+  -43,
+  115,
+  30,
+  12,
+  24,
+  0x9b7653
+);
+
+
+// ============================================================
+// SHOPPING COMPLEXES
+// ============================================================
+
+building(
+  "CHARIS SHOPPING COMPLEX",
+  40,
+  125,
+  34,
+  10,
+  25,
+  0xd4d4d4
+);
+
+building(
+  "MATANMI SHOPPING COMPLEX",
+  -42,
+  150,
+  32,
+  11,
+  26,
+  0xa77b54
+);
+
+building(
+  "SHOPPING COMPLEX",
+  40,
+  165,
+  30,
+  13,
+  22,
+  0xbdbdbd
+);
+
+
+// ============================================================
+// DENSE SMALL SHOPS
+// ============================================================
+
+function smallShop(
+  x,
+  z,
+  color
+) {
+
+  building(
+    "SHOP",
+    x,
+    z,
+    8,
+    4 + Math.random() * 3,
+    7,
+    color
+  );
+
+}
+
+
+// West side shops
+for (
+  let z = -25;
+  z < 205;
+  z += 11
+) {
+
+  if (
+    Math.abs(z - 70) > 10 &&
+    Math.abs(z - 120) > 12
+  ) {
+
+    smallShop(
+      -31 - Math.random() * 8,
+      z,
+      [
+        0xd59b55,
+        0xb86e4a,
+        0xc7b17a,
+        0x8b9e75
+      ][Math.floor(Math.random() * 4)]
+    );
+
+  }
+
+}
+
+
+// East side shops
+for (
+  let z = -25;
+  z < 205;
+  z += 12
+) {
+
+  if (
+    Math.abs(z - 65) > 12 &&
+    Math.abs(z - 125) > 12
+  ) {
+
+    smallShop(
+      31 + Math.random() * 8,
+      z,
+      [
+        0xd7a45d,
+        0x9a6d4d,
+        0xc0a16b,
+        0x758c70
+      ][Math.floor(Math.random() * 4)]
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// RESTAURANTS
+// ============================================================
+
+building(
+  "KILIMANJARO RESTAURANT",
+  38,
+  -25,
+  20,
+  8,
+  15,
+  0xb33a2d
+);
+
+building(
+  "CHICKEN RESTAURANT",
+  -38,
+  -38,
+  20,
+  8,
+  15,
+  0xe3a62f
+);
+
+
+// ============================================================
+// FUEL STATION
+// ============================================================
+
+function fuelStation(
+  x,
+  z
+) {
+
+  // canopy
+  box(
+    25,
+    .8,
+    18,
+    whiteMat,
+    x,
+    7,
+    z
+  );
+
+  // canopy supports
+  for (
+    const dx of [-9, 9]
+  ) {
+
+    box(
+      .7,
+      7,
+      .7,
+      darkMat,
+      x + dx,
+      3.5,
+      z - 6
+    );
+
+    box(
+      .7,
+      7,
+      .7,
+      darkMat,
+      x + dx,
+      3.5,
+      z + 6
+    );
+
+  }
+
+  // pumps
+  for (
+    const dx of [-6, 0, 6]
+  ) {
+
+    box(
+      2,
+      1.6,
+      1.2,
+      redMat,
+      x + dx,
+      .9,
+      z
+    );
+
+  }
+
+  building(
+    "CONOIL",
+    x,
+    z + 15,
+    17,
+    6,
+    9,
+    0xf0d14b
+  );
+
+}
+
+fuelStation(
+  -50,
+  -8
+);
+
+fuelStation(
+  50,
+  -100
+);
+
+
+// ============================================================
+// MOTOR PARK
+// ============================================================
+
+box(
+  48,
+  .15,
+  38,
+  darkMat,
+  -72,
+  .1,
+  18
+);
+
+building(
+  "MARABA MOTOR PARK",
+  -72,
+  0,
+  38,
+  7,
+  12,
+  0x80715e
+);
+
+
+// Bus-like parked vehicles
+function vehicle(
+  x,
+  y,
+  z,
+  color
+) {
+
+  const g = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      4,
+      1.5,
+      7
+    ),
+    mat(color)
+  );
+
+  body.position.y = 1.1;
+
+  g.add(body);
+
+  const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      3.6,
+      1,
+      4
+    ),
+    mat(0xd9d9d9)
+  );
+
+  roof.position.y = 2.25;
+
+  g.add(roof);
+
+  g.position.set(
+    x,
+    y,
+    z
+  );
+
+  scene.add(g);
+
+}
+
+for (
+  let i = 0;
+  i < 8;
+  i++
+) {
+
+  vehicle(
+    -88 + (i % 4) * 9,
+    0,
+    3 + Math.floor(i / 4) * 10,
+    [
+      0xffffff,
+      0xeeeeee,
+      0xdddddd,
+      0xc7c7c7
+    ][i % 4]
+  );
+
+}
+
+
+// ============================================================
+// UNDER-FLYOVER AREA
+// ============================================================
+
+// Side structures near the lower road
+for (
+  let z = -45;
+  z <= 45;
+  z += 15
+) {
+
+  box(
+    3,
+    3,
+    7,
+    brownMat,
+    -14,
+    1.5,
+    z
+  );
+
+  box(
+    3,
+    3,
+    7,
+    brownMat,
+    14,
+    1.5,
+    z
+  );
+
+}
+
+
+// ============================================================
+// TREES
+// ============================================================
+
+function tree(x, z) {
+
+  box(
+    .8,
+    4,
+    .8,
+    brownMat,
+    x,
+    2,
+    z
+  );
+
+  const crown = new THREE.Mesh(
+    new THREE.SphereGeometry(
+      3.5,
+      10,
+      8
+    ),
+    greenMat
+  );
+
+  crown.position.set(
+    x,
+    6,
+    z
+  );
+
+  crown.castShadow = true;
+
+  scene.add(crown);
+
+}
+
+for (
+  let z = -190;
+  z <= 190;
+  z += 35
+) {
+
+  tree(-28, z);
+  tree(28, z + 10);
+
+}
+
+
+// ============================================================
+// PLAYER
+// ============================================================
+
+const player = new THREE.Group();
+
+
+// body
+const body = new THREE.Mesh(
+  new THREE.CapsuleGeometry(
+    .55,
+    1.25,
+    6,
+    10
+  ),
+  mat(0x234f9b)
+);
+
+body.position.y = 1.25;
+body.castShadow = true;
+
+player.add(body);
+
+
+// head
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(
+    .43,
+    16,
+    12
+  ),
+  mat(0x8d5524)
+);
+
+head.position.y = 2.45;
+head.castShadow = true;
+
+player.add(head);
+
+
+// feet
+const foot1 = box(
+  .35,
+  .35,
+  .7,
+  darkMat,
+  0,
+  0,
+  0
+);
+
+scene.remove(foot1);
+
+player.add(foot1);
+
+foot1.position.set(
+  -.25,
+  .35,
+  .05
+);
+
+const foot2 = box(
+  .35,
+  .35,
+  .7,
+  darkMat,
+  0,
+  0,
+  0
+);
+
+scene.remove(foot2);
+
+player.add(foot2);
+
+foot2.position.set(
+  .25,
+  .35,
+  .05
+);
+
+
+player.position.set(
+  0,
+  0,
+  145
+);
+
+scene.add(player);
+
+
+// ============================================================
+// FLYOVER PLAYER HEIGHT
+// ============================================================
+
+let onFlyover = false;
+
+
+function getFlyoverHeight(z) {
+
+  // SOUTH RAMP
+  if (
+    z >= -85 &&
+    z < -55
+  ) {
+
+    return (
+      ((z + 85) / 30) *
+      flyoverHeight
+    );
+
+  }
+
+
+  // TOP
+  if (
+    z >= -55 &&
+    z <= 55
+  ) {
+
+    return flyoverHeight;
+
+  }
+
+
+  // NORTH RAMP
+  if (
+    z > 55 &&
+    z <= 85
+  ) {
+
+    return (
+      ((85 - z) / 30) *
+      flyoverHeight
+    );
+
+  }
+
+  return 0;
+
+}
+
+
+// ============================================================
+// JOYSTICK
+// ============================================================
+
+const joystick =
+document.getElementById("joystick");
+
+const stick =
+document.getElementById("stick");
+
+let joyX = 0;
+let joyY = 0;
+
+let touching = false;
+
+
+function updateJoystick(
+  clientX,
+  clientY
+) {
+
+  const rect =
+    joystick.getBoundingClientRect();
+
+  let x =
+    clientX -
+    (rect.left + rect.width / 2);
+
+  let y =
+    clientY -
+    (rect.top + rect.height / 2);
+
+  const max = 42;
+
+  const dist =
+    Math.sqrt(
+      x*x + y*y
+    );
+
+  if (dist > max) {
+
+    x =
+      x / dist * max;
+
+    y =
+      y / dist * max;
+
+  }
+
+  joyX = x / max;
+  joyY = y / max;
+
+  stick.style.transform =
+    `translate(${x}px, ${y}px)`;
+
+}
+
+
+function resetJoystick() {
+
+  joyX = 0;
+  joyY = 0;
+
+  stick.style.transform =
+    "translate(0px,0px)";
+
+  touching = false;
+
+}
+
+
+joystick.addEventListener(
+  "pointerdown",
+  e => {
+
+    touching = true;
+
+    joystick.setPointerCapture(
+      e.pointerId
+    );
+
+    updateJoystick(
+      e.clientX,
+      e.clientY
+    );
+
+  }
+);
+
+
+joystick.addEventListener(
+  "pointermove",
+  e => {
+
+    if (!touching) return;
+
+    updateJoystick(
+      e.clientX,
+      e.clientY
+    );
+
+  }
+);
+
+
+joystick.addEventListener(
+  "pointerup",
+  resetJoystick
+);
+
+joystick.addEventListener(
+  "pointercancel",
+  resetJoystick
+);
+
+
+// ============================================================
+// MOVEMENT
+// ============================================================
+
+const clock =
+new THREE.Clock();
+
+let walkTime = 0;
+
+
+function movePlayer(dt) {
+
+  const turnSpeed =
+    2.4 * dt;
+
+  const moveSpeed =
+    15 * dt;
+
+
+  // LEFT / RIGHT = TURN
+  player.rotation.y -=
+    joyX * turnSpeed;
+
+
+  // UP / DOWN = FORWARD / BACK
+  const forward =
+    -joyY;
+
+
+  if (
+    Math.abs(forward) > .05
+  ) {
+
+    const direction =
+      new THREE.Vector3(
+        0,
+        0,
+        forward
+      );
+
+    direction.applyAxisAngle(
+      new THREE.Vector3(0,1,0),
+      player.rotation.y
+    );
+
+    player.position.addScaledVector(
+      direction,
+      moveSpeed
+    );
+
+    walkTime += dt * 10;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // FLYOVER ENTRY
+  // ----------------------------------------------------------
+
+  const z =
+    player.position.z;
+
+  const x =
+    player.position.x;
+
+
+  // Player enters ramp from either end
+  if (
+    Math.abs(x) < 7.1 &&
+    (
+      z > -87 &&
+      z < -52
+    )
+  ) {
+
+    onFlyover = true;
+
+  }
+
+
+  if (
+    Math.abs(x) < 7.1 &&
+    (
+      z > 52 &&
+      z < 87
+    )
+  ) {
+
+    onFlyover = true;
+
+  }
+
+
+  // ----------------------------------------------------------
+  // FLYOVER MOVEMENT
+  // ----------------------------------------------------------
+
+  if (onFlyover) {
+
+    // Keep player on flyover width
+    player.position.x =
+      THREE.MathUtils.clamp(
+        player.position.x,
+        -6.4,
+        6.4
+      );
+
+
+    const h =
+      getFlyoverHeight(
+        player.position.z
+      );
+
+    player.position.y = h;
+
+
+    // Leave flyover
+    if (
+      player.position.z < -88 ||
+      player.position.z > 88
+    ) {
+
+      onFlyover = false;
+      player.position.y = 0;
+
+    }
+
+  } else {
+
+    // Ground level.
+    // This means you can walk UNDER the flyover.
+    player.position.y = 0;
+
+  }
+
+
+  // World boundaries
+
+  player.position.x =
+    THREE.MathUtils.clamp(
+      player.position.x,
+      -145,
+      145
+    );
+
+  player.position.z =
+    THREE.MathUtils.clamp(
+      player.position.z,
+      -215,
+      215
+    );
+
+
+  // Small walking animation
+
+  if (
+    Math.abs(forward) > .05
+  ) {
+
+    body.position.y =
+      1.25 +
+      Math.sin(walkTime) * .035;
+
+  } else {
+
+    body.position.y = 1.25;
+
+  }
+
+}
+
+
+// ============================================================
+// CAMERA
+// ============================================================
+
+const cameraTarget =
+new THREE.Vector3();
+
+const desiredCamera =
+new THREE.Vector3();
+
+
+function updateCamera() {
+
+  const distance = 10;
+  const height = 6.5;
+
+
+  const behind =
+    new THREE.Vector3(
+      0,
+      height,
+      distance
+    );
+
+
+  behind.applyAxisAngle(
+    new THREE.Vector3(0,1,0),
+    player.rotation.y
+  );
+
+
+  desiredCamera.copy(
+    player.position
+  );
+
+  desiredCamera.add(
+    behind
+  );
+
+
+  // Camera can NEVER go below this
+  desiredCamera.y =
+    Math.max(
+      desiredCamera.y,
+      player.position.y + 2.2
+    );
+
+
+  camera.position.lerp(
+    desiredCamera,
+    .09
+  );
+
+
+  cameraTarget.copy(
+    player.position
+  );
+
+  cameraTarget.y += 2;
+
+
+  camera.lookAt(
+    cameraTarget
+  );
+
+}
+
+
+// ============================================================
+// LOCATION HUD
+// ============================================================
+
+const location =
+document.getElementById(
+  "location"
+);
+
+
+function updateLocation() {
+
+  const z =
+    player.position.z;
+
+
+  if (onFlyover) {
+
+    location.textContent =
+      "📍 POST OFFICE FLYOVER — UPPER DECK";
+
+    return;
+
+  }
+
+
+  if (
+    z > -88 &&
+    z < 88
+  ) {
+
+    location.textContent =
+      "📍 UNDER POST OFFICE FLYOVER";
+
+    return;
+
+  }
+
+
+  if (z > 105) {
+
+    location.textContent =
+      "📍 MARABA → GENERAL POST OFFICE";
+
+    return;
+
+  }
+
+
+  if (z < -105) {
+
+    location.textContent =
+      "📍 POST OFFICE → CHALLENGE";
+
+    return;
+
+  }
+
+
+  location.textContent =
+    "📍 POST OFFICE DISTRICT — ILORIN";
+
+}
+
+
+// ============================================================
+// DAY / NIGHT
+// ============================================================
+
+const timeBox =
+document.getElementById("time");
+
+let worldTime = 12;
+
+
+function updateDayNight(dt) {
+
+  worldTime +=
+    dt * .08;
+
+  if (worldTime >= 24)
+    worldTime = 0;
+
+
+  const daylight =
+    Math.max(
+      0,
+      Math.sin(
+        (worldTime - 6) /
+        12 *
+        Math.PI
+      )
+    );
+
+
+  sun.intensity =
+    .35 +
+    daylight * 2.1;
+
+
+  hemi.intensity =
+    .45 +
+    daylight * 1.35;
+
+
+  if (
+    worldTime >= 6 &&
+    worldTime < 18
+  ) {
+
+    scene.background =
+      new THREE.Color(
+        0x87ceeb
+      );
+
+    scene.fog.color =
+      new THREE.Color(
+        0x87ceeb
+      );
+
+    timeBox.textContent =
+      "☀️ Day";
+
+  } else {
+
+    scene.background =
+      new THREE.Color(
+        0x11182e
+      );
+
+    scene.fog.color =
+      new THREE.Color(
+        0x11182e
+      );
+
+    timeBox.textContent =
+      "🌙 Night";
+
+  }
+
+}
+
+
+// ============================================================
+// CLOUDS
+// ============================================================
+
+function cloud(x,y,z) {
+
+  const group =
+    new THREE.Group();
+
+  for (
+    let i = 0;
+    i < 5;
+    i++
+  ) {
+
+    const puff =
+      new THREE.Mesh(
+        new THREE.SphereGeometry(
+          5 + Math.random() * 3,
+          10,
+          8
+        ),
+        new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: .85
+        })
+      );
+
+    puff.position.set(
+      i * 5,
+      Math.random() * 2,
+      Math.random() * 3
+    );
+
+    group.add(puff);
+
+  }
+
+  group.position.set(
+    x,
+    y,
+    z
+  );
+
+  scene.add(group);
+
+}
+
+
+cloud(-70, 55, -100);
+cloud(80, 70, -160);
+cloud(20, 62, 120);
+
+
+// ============================================================
+// SIMPLE RAIN
+// ============================================================
+
+const rainGroup =
+new THREE.Group();
+
+scene.add(rainGroup);
+
+for (
+  let i = 0;
+  i < 300;
+  i++
+) {
+
+  const drop =
+    new THREE.Mesh(
+      new THREE.BoxGeometry(
+        .025,
+        1.3,
+        .025
+      ),
+      new THREE.MeshBasicMaterial({
+        color: 0x9ccfff,
+        transparent: true,
+        opacity: .45
+      })
+    );
+
+  drop.position.set(
+    (Math.random() - .5) * 300,
+    Math.random() * 100,
+    (Math.random() - .5) * 300
+  );
+
+  rainGroup.add(drop);
+
+}
+
+rainGroup.visible = false;
+
+
+function updateRain(dt) {
+
+  if (
+    Math.random() < .0008
+  ) {
+
+    rainGroup.visible =
+      !rainGroup.visible;
+
+  }
+
+  if (!rainGroup.visible)
+    return;
+
+
+  for (
+    const drop of rainGroup.children
+  ) {
+
+    drop.position.y -=
+      30 * dt;
+
+    if (
+      drop.position.y < 0
+    ) {
+
+      drop.position.y =
+        80 + Math.random() * 20;
+
+    }
+
+  }
+
+}
+
+
+// ============================================================
+// RESIZE
+// ============================================================
+
+addEventListener(
+  "resize",
+  () => {
+
+    camera.aspect =
+      innerWidth /
+      innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      innerWidth,
+      innerHeight
+    );
+
+  }
+);
+
+
+// ============================================================
+// GAME LOOP
+// ============================================================
+
+function animate() {
+
+  requestAnimationFrame(
+    animate
+  );
+
+  const dt =
+    Math.min(
+      clock.getDelta(),
+      .05
+    );
+
+
+  movePlayer(dt);
+
+  updateCamera();
+
+  updateLocation();
+
+  updateDayNight(dt);
+
+  updateRain(dt);
+
+
+  renderer.render(
+    scene,
+    camera
+  );
+
+}
+
+
+animate();
+
+</script>
+
+</body>
+</html>
