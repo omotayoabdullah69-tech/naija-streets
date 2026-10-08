@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Naija Streets 3D World</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  background: #87ceeb;
+  touch-action: none;
+}
+
+canvas {
+  display: block;
+}
+
+#hud {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
+  color: white;
+  text-shadow: 0 2px 4px #000;
+  pointer-events: none;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.info {
+  margin-top: 5px;
+  font-size: 13px;
+}
+
+#weather {
+  margin-top: 3px;
+}
+
+#joystick {
+  position: fixed;
+  left: 22px;
+  bottom: 25px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.16);
+  border: 2px solid rgba(255,255,255,.45);
+  z-index: 20;
+}
+
+#stick {
+  position: absolute;
+  width: 58px;
+  height: 58px;
+  left: 36px;
+  top: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.75);
+  box-shadow: 0 3px 12px rgba(0,0,0,.35);
+}
+
+.button {
+  position: fixed;
+  right: 22px;
+  bottom: 30px;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.5);
+  background: rgba(20,20,20,.55);
+  color: white;
+  font-weight: bold;
+  z-index: 20;
+}
+
+#jump {
+  bottom: 115px;
+}
+
+#run {
+  bottom: 30px;
+}
+
+#message {
+  position: fixed;
+  bottom: 175px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(0,0,0,.55);
+  color: white;
+  font-size: 13px;
+  z-index: 15;
+  pointer-events: none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="hud">
+  <div class="title">🇳🇬 NAIJA STREETS</div>
+  <div class="info">📍 Ilorin, Kwara State</div>
+  <div class="info" id="time">🕐 08:00</div>
+  <div class="info" id="weather">☀️ Clear</div>
+</div>
+
+<div id="message">Use the joystick to move and turn</div>
+
+<div id="joystick">
+  <div id="stick"></div>
+</div>
+
+<button class="button" id="jump">JUMP</button>
+<button class="button" id="run">RUN</button>
+
+<script type="module">
+
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+/* =========================
+   BASIC THREE.JS SETUP
+========================= */
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  65,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: "high-performance"
+});
+
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+document.body.appendChild(renderer.domElement);
+
+
+/* =========================
+   WORLD
+========================= */
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(500, 500),
+  new THREE.MeshStandardMaterial({
+    color: 0x477b3a,
+    roughness: 1
+  })
+);
+
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+
+/* =========================
+   ROADS
+========================= */
+
+function makeRoad(x, z, width, depth) {
+
+  const road = new THREE.Mesh(
+    new THREE.BoxGeometry(width, .08, depth),
+    new THREE.MeshStandardMaterial({
+      color: 0x292929,
+      roughness: .9
+    })
+  );
+
+  road.position.set(x, .04, z);
+  road.receiveShadow = true;
+
+  scene.add(road);
+}
+
+makeRoad(0, 0, 500, 18);
+makeRoad(0, 0, 18, 500);
+
+
+/* =========================
+   ROAD LINES
+========================= */
+
+function roadLine(x, z, rotation) {
+
+  const line = new THREE.Mesh(
+    new THREE.BoxGeometry(1, .03, 6),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff
+    })
+  );
+
+  line.position.set(x, .1, z);
+  line.rotation.y = rotation;
+
+  scene.add(line);
+}
+
+for (let i = -240; i < 240; i += 12) {
+  roadLine(i, 0, 0);
+  roadLine(0, i, Math.PI / 2);
+}
+
+
+/* =========================
+   BUILDINGS
+========================= */
+
+function building(x, z, w, h, d, color) {
+
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({
+      color: color,
+      roughness: .85
+    })
+  );
+
+  body.position.y = h / 2;
+  body.castShadow = true;
+  body.receiveShadow = true;
+
+  group.add(body);
+
+  /* roof */
+  const roof = new THREE.Mesh(
+    new THREE.BoxGeometry(w + .5, .25, d + .5),
+    new THREE.MeshStandardMaterial({
+      color: 0x333333
+    })
+  );
+
+  roof.position.y = h + .13;
+  roof.castShadow = true;
+
+  group.add(roof);
+
+  /* windows */
+  for (let yy = 2; yy < h - 1; yy += 2.5) {
+
+    for (let xx = -w / 2 + 1.2; xx < w / 2 - .5; xx += 2.3) {
+
+      const windowMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(.8, .9, .05),
+        new THREE.MeshStandardMaterial({
+          color: 0x7fc8e8,
+          emissive: 0x102030
+        })
+      );
+
+      windowMesh.position.set(
+        xx,
+        yy,
+        d / 2 + .03
+      );
+
+      group.add(windowMesh);
+    }
+  }
+
+  group.position.set(x, 0, z);
+
+  scene.add(group);
+}
+
+
+/* Nigerian-style starter neighborhood */
+
+building(-35, -30, 18, 12, 18, 0xc99b65);
+building(35, -30, 22, 15, 18, 0xd2d2d2);
+building(-35, 30, 20, 10, 20, 0xe1b07a);
+building(35, 30, 24, 18, 20, 0xb8754e);
+
+building(-70, -65, 30, 14, 25, 0xaaaaaa);
+building(70, 65, 32, 16, 28, 0xd4a373);
+
+
+/* =========================
+   TREES
+========================= */
+
+function tree(x, z) {
+
+  const group = new THREE.Group();
+
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(.35, .5, 3, 8),
+    new THREE.MeshStandardMaterial({
+      color: 0x654321
+    })
+  );
+
+  trunk.position.y = 1.5;
+  trunk.castShadow = true;
+
+  group.add(trunk);
+
+  const leaves = new THREE.Mesh(
+    new THREE.SphereGeometry(2.4, 10, 10),
+    new THREE.MeshStandardMaterial({
+      color: 0x287a32
+    })
+  );
+
+  leaves.position.y = 4;
+  leaves.castShadow = true;
+
+  group.add(leaves);
+
+  group.position.set(x, 0, z);
+
+  scene.add(group);
+}
+
+for (let i = 0; i < 20; i++) {
+
+  const x = (Math.random() - .5) * 220;
+  const z = (Math.random() - .5) * 220;
+
+  if (Math.abs(x) > 15 && Math.abs(z) > 15) {
+    tree(x, z);
+  }
+}
+
+
+/* =========================
+   PLAYER
+========================= */
+
+const player = new THREE.Group();
+
+const body = new THREE.Mesh(
+  new THREE.CapsuleGeometry(.45, 1.1, 6, 12),
+  new THREE.MeshStandardMaterial({
+    color: 0x174f9c
+  })
+);
+
+body.position.y = 1.05;
+body.castShadow = true;
+
+player.add(body);
+
+
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(.38, 16, 16),
+  new THREE.MeshStandardMaterial({
+    color: 0x8b5a3c
+  })
+);
+
+head.position.y = 2.05;
+head.castShadow = true;
+
+player.add(head);
+
+
+/* shirt detail */
+
+const shirt = new THREE.Mesh(
+  new THREE.BoxGeometry(.65, .55, .5),
+  new THREE.MeshStandardMaterial({
+    color: 0xffffff
+  })
+);
+
+shirt.position.y = 1.15;
+shirt.castShadow = true;
+
+player.add(shirt);
+
+player.position.set(0, 0, 8);
+
+scene.add(player);
+
+
+/* =========================
+   LIGHTING
+========================= */
+
+const ambient = new THREE.HemisphereLight(
+  0x87ceeb,
+  0x334422,
+  1.2
+);
+
+scene.add(ambient);
+
+
+const sun = new THREE.DirectionalLight(
+  0xffffff,
+  2
+);
+
+sun.castShadow = true;
+sun.shadow.mapSize.width = 1024;
+sun.shadow.mapSize.height = 1024;
+
+sun.shadow.camera.left = -100;
+sun.shadow.camera.right = 100;
+sun.shadow.camera.top = 100;
+sun.shadow.camera.bottom = -100;
+
+scene.add(sun);
+
+
+/* =========================
+   SUN
+========================= */
+
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(5, 16, 16),
+  new THREE.MeshBasicMaterial({
+    color: 0xffdd55
+  })
+);
+
+scene.add(sunMesh);
+
+
+/* =========================
+   CLOUDS
+========================= */
+
+const clouds = [];
+
+function makeCloud(x, y, z) {
+
+  const cloud = new THREE.Group();
+
+  for (let i = 0; i < 5; i++) {
+
+    const puff = new THREE.Mesh(
+      new THREE.SphereGeometry(
+        2 + Math.random() * 1.5,
+        10,
+        10
+      ),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: .88
+      })
+    );
+
+    puff.position.set(
+      i * 2 - 4,
+      Math.random() * 1.2,
+      Math.random() * 1.5
+    );
+
+    cloud.add(puff);
+  }
+
+  cloud.position.set(x, y, z);
+
+  scene.add(cloud);
+  clouds.push(cloud);
+}
+
+makeCloud(-80, 45, -80);
+makeCloud(20, 50, -120);
+makeCloud(100, 42, -20);
+makeCloud(-120, 48, 70);
+
+
+/* =========================
+   RAIN
+========================= */
+
+const rainCount = 500;
+
+const rainGeometry = new THREE.BufferGeometry();
+
+const rainPositions = new Float32Array(
+  rainCount * 3
+);
+
+for (let i = 0; i < rainCount; i++) {
+
+  rainPositions[i * 3] =
+    (Math.random() - .5) * 180;
+
+  rainPositions[i * 3 + 1] =
+    Math.random() * 70;
+
+  rainPositions[i * 3 + 2] =
+    (Math.random() - .5) * 180;
+}
+
+rainGeometry.setAttribute(
+  "position",
+  new THREE.BufferAttribute(
+    rainPositions,
+    3
+  )
+);
+
+const rainMaterial = new THREE.PointsMaterial({
+  color: 0xaaccee,
+  size: .12,
+  transparent: true,
+  opacity: .7
+});
+
+const rain = new THREE.Points(
+  rainGeometry,
+  rainMaterial
+);
+
+rain.visible = false;
+
+scene.add(rain);
+
+
+/* =========================
+   GAME TIME
+========================= */
+
+let gameTime = 8;
+
+const timeText =
+  document.getElementById("time");
+
+const weatherText =
+  document.getElementById("weather");
+
+let weather = "clear";
+
+function updateTime(delta) {
+
+  /* roughly 24 game hours every 12 real minutes */
+
+  gameTime += delta * .033;
+
+  if (gameTime >= 24) {
+    gameTime -= 24;
+  }
+
+  const hours =
+    Math.floor(gameTime);
+
+  const minutes =
+    Math.floor(
+      (gameTime - hours) * 60
+    );
+
+  timeText.textContent =
+    "🕐 " +
+    String(hours).padStart(2, "0") +
+    ":" +
+    String(minutes).padStart(2, "0");
+
+  updateLighting();
+}
+
+
+function updateLighting() {
+
+  const angle =
+    ((gameTime - 6) / 24) *
+    Math.PI * 2;
+
+  const sunX =
+    Math.cos(angle) * 100;
+
+  const sunY =
+    Math.sin(angle) * 100;
+
+  const sunZ = 30;
+
+  sun.position.set(
+    sunX,
+    Math.max(5, sunY),
+    sunZ
+  );
+
+  sunMesh.position.set(
+    sunX,
+    Math.max(5, sunY),
+    sunZ
+  );
+
+  const daylight =
+    Math.max(
+      0.12,
+      Math.sin(angle) * .5 + .5
+    );
+
+  sun.intensity =
+    daylight * 2;
+
+  ambient.intensity =
+    .35 + daylight * .9;
+
+  if (gameTime >= 6 && gameTime < 18) {
+
+    scene.background =
+      new THREE.Color(0x76b9e8);
+
+  } else {
+
+    scene.background =
+      new THREE.Color(0x10182e);
+  }
+}
+
+
+/* =========================
+   WEATHER
+========================= */
+
+let weatherTimer = 0;
+
+function updateWeather(delta) {
+
+  weatherTimer += delta;
+
+  if (weatherTimer > 45) {
+
+    weatherTimer = 0;
+
+    weather =
+      weather === "clear"
+        ? "rain"
+        : "clear";
+
+    rain.visible =
+      weather === "rain";
+
+    weatherText.textContent =
+      weather === "rain"
+        ? "🌧️ Rain"
+        : "☀️ Clear";
+  }
+}
+
+
+/* =========================
+   JOYSTICK
+========================= */
+
+const joystick =
+  document.getElementById("joystick");
+
+const stick =
+  document.getElementById("stick");
+
+let joystickActive = false;
+
+let joystickX = 0;
+let joystickY = 0;
+
+let pointerId = null;
+
+const maxDistance = 36;
+
+function updateJoystick(clientX, clientY) {
+
+  const rect =
+    joystick.getBoundingClientRect();
+
+  const centerX =
+    rect.left + rect.width / 2;
+
+  const centerY =
+    rect.top + rect.height / 2;
+
+  let dx =
+    clientX - centerX;
+
+  let dy =
+    clientY - centerY;
+
+  const distance =
+    Math.sqrt(dx * dx + dy * dy);
+
+  if (distance > maxDistance) {
+
+    dx =
+      dx / distance *
+      maxDistance;
+
+    dy =
+      dy / distance *
+      maxDistance;
+  }
+
+  stick.style.transform =
+    `translate(${dx}px, ${dy}px)`;
+
+  joystickX =
+    dx / maxDistance;
+
+  joystickY =
+    dy / maxDistance;
+}
+
+
+joystick.addEventListener(
+  "pointerdown",
+  e => {
+
+    joystickActive = true;
+    pointerId = e.pointerId;
+
+    joystick.setPointerCapture(
+      e.pointerId
+    );
+
+    updateJoystick(
+      e.clientX,
+      e.clientY
+    );
+  }
+);
+
+
+joystick.addEventListener(
+  "pointermove",
+  e => {
+
+    if (
+      !joystickActive ||
+      e.pointerId !== pointerId
+    ) return;
+
+    updateJoystick(
+      e.clientX,
+      e.clientY
+    );
+  }
+);
+
+
+function resetJoystick() {
+
+  joystickActive = false;
+  pointerId = null;
+
+  joystickX = 0;
+  joystickY = 0;
+
+  stick.style.transform =
+    "translate(0px, 0px)";
+}
+
+
+joystick.addEventListener(
+  "pointerup",
+  resetJoystick
+);
+
+joystick.addEventListener(
+  "pointercancel",
+  resetJoystick
+);
+
+
+/* =========================
+   MOVEMENT
+========================= */
+
+let running = false;
+
+let verticalVelocity = 0;
+
+let onGround = true;
+
+const gravity = -18;
+
+const walkSpeed = 5;
+const runSpeed = 9;
+
+const turnSpeed = 2.8;
+
+
+/* RUN BUTTON */
+
+const runButton =
+  document.getElementById("run");
+
+runButton.addEventListener(
+  "pointerdown",
+  () => {
+    running = true;
+  }
+);
+
+runButton.addEventListener(
+  "pointerup",
+  () => {
+    running = false;
+  }
+);
+
+runButton.addEventListener(
+  "pointercancel",
+  () => {
+    running = false;
+  }
+);
+
+
+/* =========================
+   JUMP
+========================= */
+
+document
+  .getElementById("jump")
+  .addEventListener(
+    "pointerdown",
+    () => {
+
+      if (onGround) {
+
+        verticalVelocity = 7.5;
+        onGround = false;
+      }
+    }
+  );
+
+
+/* =========================
+   KEYBOARD
+========================= */
+
+const keys = {};
+
+window.addEventListener(
+  "keydown",
+  e => {
+    keys[e.key.toLowerCase()] = true;
+  }
+);
+
+window.addEventListener(
+  "keyup",
+  e => {
+    keys[e.key.toLowerCase()] = false;
+  }
+);
+
+
+/* =========================
+   CAMERA
+========================= */
+
+const cameraTarget =
+  new THREE.Vector3();
+
+function updateCamera(delta) {
+
+  const distance = 7;
+  const height = 4.2;
+
+  const behindX =
+    Math.sin(player.rotation.y)
+    * distance;
+
+  const behindZ =
+    Math.cos(player.rotation.y)
+    * distance;
+
+  const targetX =
+    player.position.x -
+    behindX;
+
+  const targetZ =
+    player.position.z -
+    behindZ;
+
+  const desiredCamera =
+    new THREE.Vector3(
+      targetX,
+      Math.max(
+        1.8,
+        player.position.y + height
+      ),
+      targetZ
+    );
+
+  /* Smooth camera movement */
+
+  camera.position.lerp(
+    desiredCamera,
+    Math.min(1, delta * 6)
+  );
+
+  /* Never allow camera underground */
+
+  camera.position.y =
+    Math.max(
+      camera.position.y,
+      1.8
+    );
+
+  cameraTarget.set(
+    player.position.x,
+    player.position.y + 1.2,
+    player.position.z
+  );
+
+  camera.lookAt(cameraTarget);
+}
+
+
+/* =========================
+   PLAYER MOVEMENT
+========================= */
+
+function updatePlayer(delta) {
+
+  let forward = -joystickY;
+  let turn = joystickX;
+
+  /* keyboard support */
+
+  if (keys["w"] || keys["arrowup"]) {
+    forward = 1;
+  }
+
+  if (keys["s"] || keys["arrowdown"]) {
+    forward = -1;
+  }
+
+  if (keys["a"] || keys["arrowleft"]) {
+    turn = -1;
+  }
+
+  if (keys["d"] || keys["arrowright"]) {
+    turn = 1;
+  }
+
+  /* turning */
+
+  if (Math.abs(turn) > .05) {
+
+    player.rotation.y -=
+      turn *
+      turnSpeed *
+      delta;
+  }
+
+  /* movement */
+
+  if (Math.abs(forward) > .05) {
+
+    const speed =
+      running
+        ? runSpeed
+        : walkSpeed;
+
+    const direction =
+      forward > 0 ? 1 : -1;
+
+    player.position.x +=
+      Math.sin(player.rotation.y)
+      * speed
+      * direction
+      * delta;
+
+    player.position.z +=
+      Math.cos(player.rotation.y)
+      * speed
+      * direction
+      * delta;
+  }
+
+  /* jump physics */
+
+  verticalVelocity +=
+    gravity * delta;
+
+  player.position.y +=
+    verticalVelocity * delta;
+
+  if (player.position.y <= 0) {
+
+    player.position.y = 0;
+
+    verticalVelocity = 0;
+
+    onGround = true;
+  }
+
+
+  /* keep player inside starter world */
+
+  player.position.x =
+    THREE.MathUtils.clamp(
+      player.position.x,
+      -230,
+      230
+    );
+
+  player.position.z =
+    THREE.MathUtils.clamp(
+      player.position.z,
+      -230,
+      230
+    );
+}
+
+
+/* =========================
+   RAIN MOVEMENT
+========================= */
+
+function updateRain(delta) {
+
+  if (!rain.visible) return;
+
+  const positions =
+    rain.geometry.attributes.position.array;
+
+  for (let i = 0; i < rainCount; i++) {
+
+    positions[i * 3 + 1] -=
+      35 * delta;
+
+    positions[i * 3] +=
+      3 * delta;
+
+    if (
+      positions[i * 3 + 1] < 0
+    ) {
+
+      positions[i * 3 + 1] =
+        60;
+    }
+  }
+
+  rain.geometry.attributes.position.needsUpdate =
+    true;
+}
+
+
+/* =========================
+   CLOUD MOVEMENT
+========================= */
+
+function updateClouds(delta) {
+
+  for (const cloud of clouds) {
+
+    cloud.position.x +=
+      .8 * delta;
+
+    if (cloud.position.x > 180) {
+      cloud.position.x = -180;
+    }
+  }
+}
+
+
+/* =========================
+   ANIMATION
+========================= */
+
+const clock =
+  new THREE.Clock();
+
+function animate() {
+
+  requestAnimationFrame(animate);
+
+  const delta =
+    Math.min(
+      clock.getDelta(),
+      .05
+    );
+
+  updatePlayer(delta);
+
+  updateCamera(delta);
+
+  updateTime(delta);
+
+  updateWeather(delta);
+
+  updateRain(delta);
+
+  updateClouds(delta);
+
+  renderer.render(
+    scene,
+    camera
+  );
+}
+
+
+/* =========================
+   RESIZE
+========================= */
+
+window.addEventListener(
+  "resize",
+  () => {
+
+    camera.aspect =
+      window.innerWidth /
+      window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      window.innerWidth,
+      window.innerHeight
+    );
+  }
+);
+
+
+/* START */
+
+updateLighting();
+
+animate();
+
+</script>
+
+</body>
+</html>
