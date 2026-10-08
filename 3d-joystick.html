@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  >
+
+  <title>Naija Streets 3D</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111;
+      font-family: Arial, sans-serif;
+      touch-action: none;
+    }
+
+    #game {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* ---------------- HUD ---------------- */
+
+    #hud {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 10;
+
+      color: white;
+      background: rgba(0, 0, 0, 0.65);
+
+      padding: 12px 16px;
+      border-radius: 12px;
+
+      font-size: 14px;
+    }
+
+    #title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    #location {
+      color: #7cff8a;
+    }
+
+    /* ---------------- JOYSTICK ---------------- */
+
+    #joystick {
+      position: fixed;
+
+      left: 25px;
+      bottom: 30px;
+
+      width: 150px;
+      height: 150px;
+
+      border-radius: 50%;
+
+      background: rgba(0, 0, 0, 0.35);
+
+      border: 3px solid rgba(255, 255, 255, 0.35);
+
+      z-index: 20;
+
+      touch-action: none;
+    }
+
+    #joystick::after {
+      content: "";
+
+      position: absolute;
+
+      left: 50%;
+      top: 50%;
+
+      width: 110px;
+      height: 110px;
+
+      transform: translate(-50%, -50%);
+
+      border-radius: 50%;
+
+      border: 1px solid rgba(255, 255, 255, 0.12);
+
+      pointer-events: none;
+    }
+
+    #stick {
+      position: absolute;
+
+      left: 50%;
+      top: 50%;
+
+      width: 62px;
+      height: 62px;
+
+      transform: translate(-50%, -50%);
+
+      border-radius: 50%;
+
+      background: rgba(255, 255, 255, 0.65);
+
+      border: 3px solid rgba(255, 255, 255, 0.9);
+
+      box-shadow:
+        0 4px 15px rgba(0, 0, 0, 0.35);
+
+      pointer-events: none;
+    }
+
+    /* ---------------- ACTION BUTTONS ---------------- */
+
+    #actionButtons {
+      position: fixed;
+
+      right: 25px;
+      bottom: 30px;
+
+      width: 170px;
+      height: 180px;
+
+      z-index: 20;
+    }
+
+    .action {
+      position: absolute;
+
+      width: 62px;
+      height: 62px;
+
+      border-radius: 50%;
+
+      border: 2px solid rgba(255, 255, 255, 0.45);
+
+      background: rgba(0, 0, 0, 0.55);
+
+      color: white;
+
+      font-size: 11px;
+      font-weight: bold;
+
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      user-select: none;
+
+      touch-action: none;
+    }
+
+    .action:active {
+      background: rgba(40, 180, 80, 0.85);
+      transform: scale(0.94);
+    }
+
+    #run {
+      right: 0;
+      top: 0;
+    }
+
+    #jump {
+      left: 0;
+      top: 40px;
+    }
+
+    #action {
+      right: 25px;
+      bottom: 5px;
+    }
+
+    #drive {
+      left: 5px;
+      bottom: 0;
+    }
+
+    /* ---------------- LOADING ---------------- */
+
+    #loading {
+      position: fixed;
+
+      inset: 0;
+
+      z-index: 50;
+
+      display: flex;
+
+      justify-content: center;
+      align-items: center;
+
+      background: #111;
+
+      color: white;
+
+      font-size: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="loading">
+  Loading Naija Streets 3D...
+</div>
+
+<div id="hud">
+
+  <div id="title">
+    🇳🇬 NAIJA STREETS
+  </div>
+
+  <div>
+    ₦ <span id="money">5,000</span>
+  </div>
+
+  <div>
+    Respect: <span id="respect">10</span>
+  </div>
+
+  <div id="location">
+    ILORIN, KWARA STATE
+  </div>
+
+</div>
+
+<canvas id="game"></canvas>
+
+
+<!-- ---------------- JOYSTICK ---------------- -->
+
+<div id="joystick">
+  <div id="stick"></div>
+</div>
+
+
+<!-- ---------------- ACTION BUTTONS ---------------- -->
+
+<div id="actionButtons">
+
+  <div
+    class="action"
+    id="run"
+  >
+    RUN
+  </div>
+
+  <div
+    class="action"
+    id="jump"
+  >
+    JUMP
+  </div>
+
+  <div
+    class="action"
+    id="action"
+  >
+    ACTION
+  </div>
+
+  <div
+    class="action"
+    id="drive"
+  >
+    DRIVE
+  </div>
+
+</div>
+
+
+<script type="module">
+
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+
+// =====================================================
+// SCENE
+// =====================================================
+
+const canvas =
+  document.getElementById("game");
+
+const scene =
+  new THREE.Scene();
+
+scene.background =
+  new THREE.Color(0x87ceeb);
+
+
+// =====================================================
+// CAMERA
+// =====================================================
+
+const camera =
+  new THREE.PerspectiveCamera(
+    65,
+    window.innerWidth /
+    window.innerHeight,
+    0.1,
+    1000
+  );
+
+
+// =====================================================
+// RENDERER
+// =====================================================
+
+const renderer =
+  new THREE.WebGLRenderer({
+    canvas: canvas,
+    antialias: true
+  });
+
+renderer.setPixelRatio(
+  Math.min(window.devicePixelRatio, 2)
+);
+
+renderer.setSize(
+  window.innerWidth,
+  window.innerHeight
+);
+
+renderer.shadowMap.enabled = true;
+
+
+// =====================================================
+// LIGHT
+// =====================================================
+
+const sunlight =
+  new THREE.DirectionalLight(
+    0xffffff,
+    2
+  );
+
+sunlight.position.set(
+  50,
+  100,
+  50
+);
+
+sunlight.castShadow = true;
+
+scene.add(sunlight);
+
+
+const ambient =
+  new THREE.AmbientLight(
+    0xffffff,
+    0.7
+  );
+
+scene.add(ambient);
+
+
+// =====================================================
+// GROUND
+// =====================================================
+
+const groundGeometry =
+  new THREE.PlaneGeometry(
+    300,
+    300
+  );
+
+const groundMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0x4d8c45
+  });
+
+const ground =
+  new THREE.Mesh(
+    groundGeometry,
+    groundMaterial
+  );
+
+ground.rotation.x =
+  -Math.PI / 2;
+
+ground.receiveShadow = true;
+
+scene.add(ground);
+
+
+// =====================================================
+// ROADS
+// =====================================================
+
+function createRoad(
+  x,
+  z,
+  width,
+  length
+) {
+
+  const geometry =
+    new THREE.BoxGeometry(
+      width,
+      0.15,
+      length
+    );
+
+  const material =
+    new THREE.MeshStandardMaterial({
+      color: 0x292929
+    });
+
+  const road =
+    new THREE.Mesh(
+      geometry,
+      material
+    );
+
+  road.position.set(
+    x,
+    0.08,
+    z
+  );
+
+  scene.add(road);
+}
+
+
+createRoad(
+  0,
+  0,
+  18,
+  300
+);
+
+createRoad(
+  0,
+  0,
+  300,
+  18
+);
+
+
+// =====================================================
+// BUILDINGS
+// =====================================================
+
+function createBuilding(
+  x,
+  z,
+  width,
+  height,
+  depth,
+  color
+) {
+
+  const geometry =
+    new THREE.BoxGeometry(
+      width,
+      height,
+      depth
+    );
+
+  const material =
+    new THREE.MeshStandardMaterial({
+      color: color
+    });
+
+  const building =
+    new THREE.Mesh(
+      geometry,
+      material
+    );
+
+  building.position.set(
+    x,
+    height / 2,
+    z
+  );
+
+  building.castShadow = true;
+
+  building.receiveShadow = true;
+
+  scene.add(building);
+}
+
+
+createBuilding(
+  -28,
+  -30,
+  25,
+  12,
+  25,
+  0xc98252
+);
+
+createBuilding(
+  30,
+  -35,
+  30,
+  15,
+  25,
+  0xd8c39a
+);
+
+createBuilding(
+  -35,
+  35,
+  25,
+  10,
+  30,
+  0xe0b05c
+);
+
+createBuilding(
+  35,
+  35,
+  30,
+  18,
+  25,
+  0xb86b55
+);
+
+
+// =====================================================
+// PLAYER
+// =====================================================
+
+const player =
+  new THREE.Group();
+
+
+// Body
+
+const bodyGeometry =
+  new THREE.CapsuleGeometry(
+    0.8,
+    1.8,
+    4,
+    8
+  );
+
+const bodyMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0x222222
+  });
+
+const body =
+  new THREE.Mesh(
+    bodyGeometry,
+    bodyMaterial
+  );
+
+body.position.y = 1.8;
+
+body.castShadow = true;
+
+player.add(body);
+
+
+// Head
+
+const headGeometry =
+  new THREE.SphereGeometry(
+    0.55,
+    16,
+    16
+  );
+
+const headMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0x8d5524
+  });
+
+const head =
+  new THREE.Mesh(
+    headGeometry,
+    headMaterial
+  );
+
+head.position.y = 3.1;
+
+head.castShadow = true;
+
+player.add(head);
+
+
+player.position.set(
+  0,
+  0,
+  25
+);
+
+scene.add(player);
+
+
+// =====================================================
+// CAMERA
+// =====================================================
+
+camera.position.set(
+  0,
+  6,
+  35
+);
+
+
+// =====================================================
+// JOYSTICK
+// =====================================================
+
+const joystick =
+  document.getElementById(
+    "joystick"
+  );
+
+const stick =
+  document.getElementById(
+    "stick"
+  );
+
+
+let joystickActive = false;
+
+let joystickX = 0;
+
+let joystickY = 0;
+
+let joystickPointerId = null;
+
+
+const joystickRadius = 45;
+
+
+function updateJoystick(
+  clientX,
+  clientY
+) {
+
+  const rect =
+    joystick.getBoundingClientRect();
+
+  const centerX =
+    rect.left +
+    rect.width / 2;
+
+  const centerY =
+    rect.top +
+    rect.height / 2;
+
+  let dx =
+    clientX - centerX;
+
+  let dy =
+    clientY - centerY;
+
+
+  const distance =
+    Math.sqrt(
+      dx * dx +
+      dy * dy
+    );
+
+
+  if (
+    distance >
+    joystickRadius
+  ) {
+
+    dx =
+      dx / distance *
+      joystickRadius;
+
+    dy =
+      dy / distance *
+      joystickRadius;
+  }
+
+
+  joystickX =
+    dx / joystickRadius;
+
+  joystickY =
+    dy / joystickRadius;
+
+
+  stick.style.transform =
+    `translate(
+      calc(-50% + ${dx}px),
+      calc(-50% + ${dy}px)
+    )`;
+}
+
+
+function resetJoystick() {
+
+  joystickActive = false;
+
+  joystickPointerId = null;
+
+  joystickX = 0;
+
+  joystickY = 0;
+
+  stick.style.transform =
+    "translate(-50%, -50%)";
+}
+
+
+joystick.addEventListener(
+  "pointerdown",
+  event => {
+
+    joystickActive = true;
+
+    joystickPointerId =
+      event.pointerId;
+
+    joystick.setPointerCapture(
+      event.pointerId
+    );
+
+    updateJoystick(
+      event.clientX,
+      event.clientY
+    );
+  }
+);
+
+
+joystick.addEventListener(
+  "pointermove",
+  event => {
+
+    if (
+      !joystickActive ||
+      event.pointerId !==
+      joystickPointerId
+    ) {
+      return;
+    }
+
+    updateJoystick(
+      event.clientX,
+      event.clientY
+    );
+  }
+);
+
+
+joystick.addEventListener(
+  "pointerup",
+  resetJoystick
+);
+
+
+joystick.addEventListener(
+  "pointercancel",
+  resetJoystick
+);
+
+
+// =====================================================
+// ACTION BUTTONS
+// =====================================================
+
+let running = false;
+
+let jumping = false;
+
+
+const runButton =
+  document.getElementById("run");
+
+const jumpButton =
+  document.getElementById("jump");
+
+
+runButton.addEventListener(
+  "pointerdown",
+  () => {
+
+    running = true;
+
+  }
+);
+
+
+runButton.addEventListener(
+  "pointerup",
+  () => {
+
+    running = false;
+
+  }
+);
+
+
+jumpButton.addEventListener(
+  "pointerdown",
+  () => {
+
+    jumping = true;
+
+    setTimeout(
+      () => {
+        jumping = false;
+      },
+      500
+    );
+
+  }
+);
+
+
+// =====================================================
+// MOVEMENT
+// =====================================================
+
+const clock =
+  new THREE.Clock();
+
+
+function animate() {
+
+  requestAnimationFrame(
+    animate
+  );
+
+
+  const delta =
+    Math.min(
+      clock.getDelta(),
+      0.05
+    );
+
+
+  // Movement speed
+
+  let speed =
+    running
+      ? 14
+      : 7;
+
+
+  const moveX =
+    joystickX *
+    speed *
+    delta;
+
+
+  const moveZ =
+    joystickY *
+    speed *
+    delta;
+
+
+  player.position.x +=
+    moveX;
+
+
+  player.position.z +=
+    moveZ;
+
+
+  // Turn player toward movement
+
+  if (
+    Math.abs(joystickX) > 0.05 ||
+    Math.abs(joystickY) > 0.05
+  ) {
+
+    const angle =
+      Math.atan2(
+        joystickX,
+        joystickY
+      );
+
+    player.rotation.y =
+      angle;
+  }
+
+
+  // Simple jump
+
+  if (jumping) {
+
+    player.position.y =
+      Math.sin(
+        Date.now() * 0.012
+      ) * 1.5;
+
+  } else {
+
+    player.position.y = 0;
+
+  }
+
+
+  // Camera follows player
+
+  const desiredCamera =
+    new THREE.Vector3(
+      player.position.x,
+      player.position.y + 6,
+      player.position.z + 10
+    );
+
+
+  camera.position.lerp(
+    desiredCamera,
+    0.08
+  );
+
+
+  const target =
+    new THREE.Vector3(
+      player.position.x,
+      player.position.y + 1.8,
+      player.position.z
+    );
+
+
+  camera.lookAt(
+    target
+  );
+
+
+  renderer.render(
+    scene,
+    camera
+  );
+}
+
+
+animate();
+
+
+// =====================================================
+// RESIZE
+// =====================================================
+
+window.addEventListener(
+  "resize",
+  () => {
+
+    camera.aspect =
+      window.innerWidth /
+      window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      window.innerWidth,
+      window.innerHeight
+    );
+  }
+);
+
+
+document.getElementById(
+  "loading"
+).style.display = "none";
+
+</script>
+
+</body>
+</html>
