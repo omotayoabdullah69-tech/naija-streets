@@ -1,0 +1,2384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Naija Streets — Ilorin Post Office V4</title>
+
+<style>
+*{
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#86c9ee;
+  touch-action:none;
+  font-family:Arial,sans-serif;
+}
+
+canvas{
+  display:block;
+}
+
+#hud{
+  position:fixed;
+  top:12px;
+  left:12px;
+  right:12px;
+  z-index:20;
+  pointer-events:none;
+}
+
+#location{
+  display:inline-block;
+  padding:9px 13px;
+  border-radius:12px;
+  background:rgba(0,0,0,.65);
+  color:#fff;
+  font-size:12px;
+  font-weight:bold;
+}
+
+#traffic{
+  position:fixed;
+  right:12px;
+  top:12px;
+  z-index:20;
+  padding:8px 11px;
+  border-radius:10px;
+  background:rgba(0,0,0,.58);
+  color:#fff;
+  font-size:11px;
+  pointer-events:none;
+}
+
+#hint{
+  position:fixed;
+  top:57px;
+  left:12px;
+  z-index:20;
+  padding:7px 10px;
+  border-radius:10px;
+  background:rgba(255,255,255,.8);
+  color:#222;
+  font-size:10px;
+  pointer-events:none;
+}
+
+#joystick{
+  position:fixed;
+  left:23px;
+  bottom:28px;
+  width:132px;
+  height:132px;
+  border-radius:50%;
+  background:rgba(0,0,0,.25);
+  border:2px solid rgba(255,255,255,.4);
+  z-index:30;
+  touch-action:none;
+}
+
+#stick{
+  position:absolute;
+  width:58px;
+  height:58px;
+  left:35px;
+  top:35px;
+  border-radius:50%;
+  background:rgba(255,255,255,.8);
+  box-shadow:0 3px 12px rgba(0,0,0,.3);
+}
+
+#version{
+  position:fixed;
+  right:10px;
+  bottom:10px;
+  color:rgba(255,255,255,.7);
+  font-size:9px;
+  z-index:20;
+  pointer-events:none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="hud">
+  <div id="location">📍 Maraba → Post Office</div>
+</div>
+
+<div id="traffic">🚗 Traffic: Normal</div>
+
+<div id="hint">
+  ↑↓ Move &nbsp; • &nbsp; ←→ Turn
+</div>
+
+<div id="joystick">
+  <div id="stick"></div>
+</div>
+
+<div id="version">NAIJA STREETS • ILORIN V4</div>
+
+<script type="module">
+
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+
+// ======================================================
+// SCENE
+// ======================================================
+
+const scene=new THREE.Scene();
+
+scene.background=
+new THREE.Color(0x86c9ee);
+
+scene.fog=
+new THREE.Fog(
+  0x86c9ee,
+  100,
+  520
+);
+
+
+// ======================================================
+// CAMERA
+// ======================================================
+
+const camera=
+new THREE.PerspectiveCamera(
+  62,
+  innerWidth/innerHeight,
+  .1,
+  800
+);
+
+
+// ======================================================
+// RENDERER
+// ======================================================
+
+const renderer=
+new THREE.WebGLRenderer({
+  antialias:true,
+  powerPreference:"high-performance"
+});
+
+renderer.setSize(
+  innerWidth,
+  innerHeight
+);
+
+renderer.setPixelRatio(
+  Math.min(devicePixelRatio,1.7)
+);
+
+renderer.shadowMap.enabled=true;
+
+document.body.appendChild(
+  renderer.domElement
+);
+
+
+// ======================================================
+// LIGHT
+// ======================================================
+
+const hemi=
+new THREE.HemisphereLight(
+  0xbfeaff,
+  0x51483d,
+  1.8
+);
+
+scene.add(hemi);
+
+const sun=
+new THREE.DirectionalLight(
+  0xffffff,
+  2.2
+);
+
+sun.position.set(
+  -100,
+  170,
+  100
+);
+
+sun.castShadow=true;
+
+scene.add(sun);
+
+
+// ======================================================
+// MATERIALS
+// ======================================================
+
+function material(color){
+
+  return new THREE.MeshStandardMaterial({
+    color:color,
+    roughness:.85,
+    metalness:.03
+  });
+
+}
+
+const roadMat=
+material(0x272727);
+
+const grassMat=
+material(0x467b3e);
+
+const sidewalkMat=
+material(0x777777);
+
+const whiteMat=
+material(0xffffff);
+
+const yellowMat=
+material(0xe7c600);
+
+const darkMat=
+material(0x222222);
+
+const concreteMat=
+material(0xb6b6b6);
+
+const glassMat=
+material(0x376b8f);
+
+
+// ======================================================
+// BOX
+// ======================================================
+
+function box(
+  w,h,d,
+  mat,
+  x,y,z
+){
+
+  const m=
+  new THREE.Mesh(
+    new THREE.BoxGeometry(
+      w,h,d
+    ),
+    mat
+  );
+
+  m.position.set(
+    x,y,z
+  );
+
+  m.castShadow=true;
+  m.receiveShadow=true;
+
+  scene.add(m);
+
+  return m;
+}
+
+
+// ======================================================
+// GROUND
+// ======================================================
+
+box(
+  700,
+  1,
+  700,
+  grassMat,
+  0,-.5,0
+);
+
+
+// ======================================================
+// ROADS
+// ======================================================
+
+// Main north/south road
+box(
+  34,
+  .12,
+  470,
+  roadMat,
+  0,.06,0
+);
+
+
+// Road toward Police Station / Challenge
+box(
+  260,
+  .12,
+  24,
+  roadMat,
+  75,.06,-120
+);
+
+
+// Road branching west
+box(
+  170,
+  .12,
+  22,
+  roadMat,
+  -65,.06,120
+);
+
+
+// Station direction
+box(
+  22,
+  .12,
+  180,
+  roadMat,
+  92,.06,100
+);
+
+
+// ======================================================
+// SIDEWALKS
+// ======================================================
+
+function sidewalk(
+  x,z,w,d
+){
+
+  box(
+    w,.22,d,
+    sidewalkMat,
+    x,.13,z
+  );
+
+}
+
+sidewalk(-20,0,4,470);
+sidewalk(20,0,4,470);
+
+sidewalk(75,-104,260,4);
+sidewalk(75,-136,260,4);
+
+sidewalk(-65,109,170,4);
+sidewalk(-65,131,170,4);
+
+
+// ======================================================
+// ROAD LINES
+// ======================================================
+
+function roadLine(
+  x,z,w,d,
+  mat=whiteMat
+){
+
+  box(
+    w,.025,d,
+    mat,
+    x,.14,z
+  );
+
+}
+
+
+// Main road centre
+for(
+  let z=-225;
+  z<225;
+  z+=16
+){
+
+  roadLine(
+    0,z,.35,7,
+    yellowMat
+  );
+
+}
+
+
+// Challenge road
+for(
+  let x=-50;
+  x<205;
+  x+=16
+){
+
+  roadLine(
+    x,-120,7,.35,
+    yellowMat
+  );
+
+}
+
+
+// ======================================================
+// FIRST POST OFFICE FLYOVER
+// ======================================================
+
+const bridgeHeight=8;
+
+function ramp(
+  z,
+  angle
+){
+
+  const r=
+  box(
+    15,
+    .65,
+    32,
+    roadMat,
+    0,
+    4,
+    z
+  );
+
+  r.rotation.x=angle;
+
+}
+
+ramp(
+  -70,
+  Math.atan(8/30)
+);
+
+ramp(
+  70,
+  -Math.atan(8/30)
+);
+
+
+// bridge deck
+
+box(
+  15,
+  .65,
+  110,
+  roadMat,
+  0,
+  bridgeHeight,
+  0
+);
+
+
+// markings
+
+for(
+  let z=-50;
+  z<=50;
+  z+=12
+){
+
+  box(
+    .35,
+    .04,
+    6,
+    yellowMat,
+    0,
+    8.36,
+    z
+  );
+
+}
+
+
+// guard rails
+
+box(
+  .45,
+  1.3,
+  110,
+  concreteMat,
+  -8,
+  8.7,
+  0
+);
+
+box(
+  .45,
+  1.3,
+  110,
+  concreteMat,
+  8,
+  8.7,
+  0
+);
+
+
+// supports
+
+for(
+  let z=-45;
+  z<=45;
+  z+=18
+){
+
+  box(
+    1.8,
+    8,
+    1.8,
+    concreteMat,
+    -6,
+    4,
+    z
+  );
+
+  box(
+    1.8,
+    8,
+    1.8,
+    concreteMat,
+    6,
+    4,
+    z
+  );
+
+}
+
+
+// ======================================================
+// SECOND FLYOVER
+// POLICE STATION / CHALLENGE DIRECTION
+// ======================================================
+
+const secondFlyoverX=100;
+const secondFlyoverY=7;
+
+
+// approach ramp
+const secondRamp1=
+box(
+  90,
+  .65,
+  13,
+  roadMat,
+  55,
+  3.5,
+  -120
+);
+
+secondRamp1.rotation.z=
+-Math.atan(7/45);
+
+
+// top
+box(
+  90,
+  .65,
+  13,
+  roadMat,
+  120,
+  7,
+  -120
+);
+
+
+// exit ramp
+const secondRamp2=
+box(
+  90,
+  .65,
+  13,
+  roadMat,
+  185,
+  3.5,
+  -120
+);
+
+secondRamp2.rotation.z=
+Math.atan(7/45);
+
+
+// second flyover rails
+
+box(
+  90,
+  1.2,
+  .45,
+  concreteMat,
+  120,
+  7.7,
+  -127
+);
+
+box(
+  90,
+  1.2,
+  .45,
+  concreteMat,
+  120,
+  7.7,
+  -113
+);
+
+
+// supports
+
+for(
+  let x=80;
+  x<=160;
+  x+=20
+){
+
+  box(
+    1.7,
+    7,
+    1.7,
+    concreteMat,
+    x,
+    3.5,
+    -126
+  );
+
+  box(
+    1.7,
+    7,
+    1.7,
+    concreteMat,
+    x,
+    3.5,
+    -114
+  );
+
+}
+
+
+// second flyover markings
+
+for(
+  let x=80;
+  x<=160;
+  x+=12
+){
+
+  box(
+    6,
+    .04,
+    .3,
+    yellowMat,
+    x,
+    7.36,
+    -120
+  );
+
+}
+
+
+// ======================================================
+// BUILDINGS
+// ======================================================
+
+function building(
+  name,
+  x,z,
+  w,h,d,
+  color
+){
+
+  box(
+    w,h,d,
+    material(color),
+    x,h/2,z
+  );
+
+  // roof
+  box(
+    w+.5,.3,d+.5,
+    darkMat,
+    x,h+.15,z
+  );
+
+  // front sign
+  box(
+    Math.min(w*.8,12),
+    1.5,
+    .12,
+    whiteMat,
+    x,
+    Math.min(h-1.5,7),
+    z-d/2-.08
+  );
+
+  // door
+  box(
+    1.5,
+    2.5,
+    .12,
+    darkMat,
+    x,
+    1.25,
+    z-d/2-.15
+  );
+
+  // windows
+  for(
+    let yy=3;
+    yy<h-1;
+    yy+=3
+  ){
+
+    box(
+      1.6,
+      1.2,
+      .1,
+      glassMat,
+      x-w/3,
+      yy,
+      z-d/2-.14
+    );
+
+    box(
+      1.6,
+      1.2,
+      .1,
+      glassMat,
+      x+w/3,
+      yy,
+      z-d/2-.14
+    );
+
+  }
+
+}
+
+
+// ======================================================
+// POST OFFICE
+// ======================================================
+
+building(
+  "GENERAL POST OFFICE",
+  -38,
+  18,
+  31,
+  14,
+  23,
+  0xd1b270
+);
+
+
+// ======================================================
+// COMMERCIAL BUILDINGS
+// ======================================================
+
+building(
+  "FCMB",
+  39,
+  32,
+  18,
+  10,
+  18,
+  0x686868
+);
+
+building(
+  "FIRST BANK",
+  39,
+  62,
+  21,
+  13,
+  19,
+  0xd5cfb9
+);
+
+building(
+  "MTN OFFICE",
+  -39,
+  52,
+  18,
+  9,
+  17,
+  0xf0c800
+);
+
+building(
+  "CBN",
+  -42,
+  86,
+  27,
+  15,
+  22,
+  0xb8b8b8
+);
+
+building(
+  "KWARA STATE LIBRARY",
+  -42,
+  120,
+  30,
+  12,
+  23,
+  0x9b7653
+);
+
+
+// ======================================================
+// POLICE STATION
+// ======================================================
+
+building(
+  "A DIVISION POLICE STATION",
+  92,
+  -87,
+  32,
+  10,
+  23,
+  0xd7d2bd
+);
+
+
+// Police sign
+
+box(
+  13,
+  2,
+  .2,
+  material(0x315a31),
+  92,
+  7,
+  -99
+);
+
+
+// Police gate
+
+box(
+  12,
+  4,
+  .5,
+  darkMat,
+  92,
+  2,
+  -100
+);
+
+
+// ======================================================
+// SHOPS AROUND POLICE AREA
+// ======================================================
+
+function shop(
+  x,z,color
+){
+
+  building(
+    "SHOP",
+    x,z,
+    8,
+    5,
+    7,
+    color
+  );
+
+}
+
+const shopColors=[
+  0xc58a50,
+  0xa86e4b,
+  0xd0ae72,
+  0x8a9b73,
+  0xb77a58
+];
+
+for(
+  let x=35;
+  x<220;
+  x+=12
+){
+
+  if(
+    x<80 ||
+    x>150
+  ){
+
+    shop(
+      x,
+      -96,
+      shopColors[
+        Math.floor(
+          Math.random()*shopColors.length
+        )
+      ]
+    );
+
+  }
+
+}
+
+
+// ======================================================
+// CHALLENGE COMMERCIAL BUILDINGS
+// ======================================================
+
+building(
+  "SHOPPING COMPLEX",
+  165,
+  -85,
+  30,
+  11,
+  20,
+  0xb9b9b9
+);
+
+building(
+  "MARKET",
+  210,
+  -88,
+  25,
+  8,
+  20,
+  0xa97750
+);
+
+building(
+  "RESTAURANT",
+  145,
+  -150,
+  20,
+  8,
+  16,
+  0xb8422f
+);
+
+
+// ======================================================
+// MARABA MOTOR PARK
+// ======================================================
+
+box(
+  48,
+  .15,
+  40,
+  roadMat,
+  -72,
+  .1,
+  20
+);
+
+building(
+  "MARABA MOTOR PARK",
+  -72,
+  -1,
+  38,
+  7,
+  12,
+  0x82725d
+);
+
+
+// ======================================================
+// FUEL STATIONS
+// ======================================================
+
+function fuelStation(
+  x,z
+){
+
+  box(
+    26,
+    .8,
+    17,
+    whiteMat,
+    x,
+    6.8,
+    z
+  );
+
+  for(
+    const dx of [-10,10]
+  ){
+
+    box(
+      .7,
+      7,
+      .7,
+      darkMat,
+      x+dx,
+      3.5,
+      z-6
+    );
+
+    box(
+      .7,
+      7,
+      .7,
+      darkMat,
+      x+dx,
+      3.5,
+      z+6
+    );
+
+  }
+
+  for(
+    const dx of [-7,0,7]
+  ){
+
+    box(
+      2,
+      1.5,
+      1.2,
+      material(0xd62828),
+      x+dx,
+      .9,
+      z
+    );
+
+  }
+
+}
+
+fuelStation(
+  -55,
+  -20
+);
+
+fuelStation(
+  55,
+  -175
+);
+
+
+// ======================================================
+// SMALL ROAD SHOPS
+// ======================================================
+
+for(
+  let z=-70;
+  z<190;
+  z+=13
+){
+
+  if(
+    Math.abs(z)<12 ||
+    Math.abs(z-85)<14
+  ) continue;
+
+  shop(
+    -31-Math.random()*7,
+    z,
+    shopColors[
+      Math.floor(
+        Math.random()*shopColors.length
+      )
+    ]
+  );
+
+  shop(
+    31+Math.random()*7,
+    z,
+    shopColors[
+      Math.floor(
+        Math.random()*shopColors.length
+      )
+    ]
+  );
+
+}
+
+
+// ======================================================
+// TREES
+// ======================================================
+
+function tree(x,z){
+
+  box(
+    .8,
+    4,
+    .8,
+    material(0x70452c),
+    x,
+    2,
+    z
+  );
+
+  const crown=
+  new THREE.Mesh(
+    new THREE.SphereGeometry(
+      3.2,
+      9,
+      8
+    ),
+    material(0x2f7139)
+  );
+
+  crown.position.set(
+    x,
+    6,
+    z
+  );
+
+  crown.castShadow=true;
+
+  scene.add(crown);
+
+}
+
+for(
+  let z=-210;
+  z<=200;
+  z+=38
+){
+
+  tree(-28,z);
+  tree(28,z+12);
+
+}
+
+
+// ======================================================
+// STREET LIGHTS
+// ======================================================
+
+function streetLight(
+  x,z
+){
+
+  box(
+    .16,
+    7,
+    .16,
+    darkMat,
+    x,
+    3.5,
+    z
+  );
+
+  box(
+    2,
+    .15,
+    .15,
+    darkMat,
+    x+(x<0?1:-1),
+    7,
+    z
+  );
+
+}
+
+for(
+  let z=-200;
+  z<=200;
+  z+=35
+){
+
+  streetLight(-18,z);
+  streetLight(18,z);
+
+}
+
+
+// ======================================================
+// VEHICLES
+// ======================================================
+
+function vehicle(
+  x,z,
+  color,
+  rotation=0,
+  scale=1
+){
+
+  const g=
+  new THREE.Group();
+
+  const body=
+  new THREE.Mesh(
+    new THREE.BoxGeometry(
+      3.8*scale,
+      1.25*scale,
+      6.4*scale
+    ),
+    material(color)
+  );
+
+  body.position.y=
+    1.05*scale;
+
+  body.castShadow=true;
+
+  g.add(body);
+
+
+  const cabin=
+  new THREE.Mesh(
+    new THREE.BoxGeometry(
+      3.1*scale,
+      1.05*scale,
+      3.2*scale
+    ),
+    material(0x526b78)
+  );
+
+  cabin.position.y=
+    2.05*scale;
+
+  cabin.position.z=
+    -.2*scale;
+
+  cabin.castShadow=true;
+
+  g.add(cabin);
+
+
+  // wheels
+  for(
+    const sx of [-1,1]
+  ){
+
+    for(
+      const sz of [-2.1,2.1]
+    ){
+
+      const wheel=
+      new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          .55*scale,
+          .55*scale,
+          .3*scale,
+          10
+        ),
+        darkMat
+      );
+
+      wheel.rotation.z=
+        Math.PI/2;
+
+      wheel.position.set(
+        sx*1.9*scale,
+        .55*scale,
+        sz*scale
+      );
+
+      g.add(wheel);
+
+    }
+
+  }
+
+
+  g.position.set(
+    x,
+    0,
+    z
+  );
+
+  g.rotation.y=
+    rotation;
+
+  scene.add(g);
+
+  return g;
+
+}
+
+
+// Parked vehicles
+vehicle(
+  -65,10,
+  0xffffff,
+  0
+);
+
+vehicle(
+  -76,28,
+  0x315fa3,
+  0
+);
+
+vehicle(
+  48,22,
+  0xc7c7c7,
+  0
+);
+
+vehicle(
+  55,44,
+  0xe3e3e3,
+  0
+);
+
+vehicle(
+  130,-98,
+  0xffffff,
+  Math.PI/2
+);
+
+
+// ======================================================
+// MOVING TRAFFIC
+// ======================================================
+
+const trafficCars=[];
+
+
+function addTrafficCar(
+  z,
+  lane,
+  speed,
+  color
+){
+
+  const car=
+  vehicle(
+    lane,
+    z,
+    color,
+    lane<0 ? Math.PI : 0,
+    .85
+  );
+
+  trafficCars.push({
+    object:car,
+    speed:speed,
+    lane:lane
+  });
+
+}
+
+
+// main road traffic
+
+for(
+  let i=0;
+  i<7;
+  i++
+){
+
+  addTrafficCar(
+    -180+i*55,
+    -8,
+    7+i%3,
+    [
+      0xffffff,
+      0x222222,
+      0xdddddd,
+      0x9a2929,
+      0x3269a8
+    ][i%5]
+  );
+
+  addTrafficCar(
+    200-i*55,
+    8,
+    -(7+i%3),
+    [
+      0xd9d9d9,
+      0xeeeeee,
+      0x333333,
+      0xb32929
+    ][i%4]
+  );
+
+}
+
+
+// challenge road traffic
+
+const challengeCars=[];
+
+for(
+  let i=0;
+  i<5;
+  i++
+){
+
+  const car=
+  vehicle(
+    10+i*43,
+    -120-5,
+    [
+      0xffffff,
+      0x303030,
+      0xdddddd,
+      0x9d3029,
+      0x2e65a3
+    ][i%5],
+    Math.PI/2,
+    .82
+  );
+
+  challengeCars.push({
+    object:car,
+    speed:5+i
+  });
+
+}
+
+
+// ======================================================
+// BUSES / DANFO STYLE VEHICLES
+// ======================================================
+
+function bus(
+  x,z,rotation
+){
+
+  const g=
+  vehicle(
+    x,z,
+    0xffffff,
+    rotation,
+    1.25
+  );
+
+  // coloured lower panel
+  box(
+    4.9,
+    .6,
+    7.8,
+    material(0xd29d24),
+    x,
+    .75,
+    z
+  );
+
+  return g;
+
+}
+
+bus(
+  -80,
+  45,
+  0
+);
+
+bus(
+  -68,
+  62,
+  0
+);
+
+bus(
+  65,
+  -120,
+  Math.PI/2
+);
+
+
+// ======================================================
+// PEOPLE
+// ======================================================
+
+function person(
+  x,z,
+  shirt,
+  pants,
+  scale=.9
+){
+
+  const g=
+  new THREE.Group();
+
+
+  const body=
+  new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      .25*scale,
+      .32*scale,
+      1.05*scale,
+      7
+    ),
+    material(shirt)
+  );
+
+  body.position.y=
+    1.05*scale;
+
+  g.add(body);
+
+
+  const head=
+  new THREE.Mesh(
+    new THREE.SphereGeometry(
+      .27*scale,
+      8,
+      8
+    ),
+    material(0x70452c)
+  );
+
+  head.position.y=
+    1.75*scale;
+
+  g.add(head);
+
+
+  const leg1=
+  new THREE.Mesh(
+    new THREE.BoxGeometry(
+      .18*scale,
+      .7*scale,
+      .18*scale
+    ),
+    material(pants)
+  );
+
+  leg1.position.set(
+    -.12*scale,
+    .35*scale,
+    0
+  );
+
+  g.add(leg1);
+
+
+  const leg2=
+  leg1.clone();
+
+  leg2.position.x=
+    .12*scale;
+
+  g.add(leg2);
+
+
+  g.position.set(
+    x,
+    0,
+    z
+  );
+
+  scene.add(g);
+
+  return g;
+
+}
+
+
+// pedestrian groups
+
+const people=[];
+
+const shirtColors=[
+  0x243f91,
+  0xe1a927,
+  0x8c302c,
+  0x2d7549,
+  0xffffff,
+  0x6c3b83
+];
+
+for(
+  let i=0;
+  i<26;
+  i++
+){
+
+  const side=
+    i%2===0 ? -1 : 1;
+
+  const p=
+  person(
+    side*(24+Math.random()*7),
+    -170+Math.random()*330,
+    shirtColors[
+      i%shirtColors.length
+    ],
+    0x282828,
+    .75+Math.random()*.2
+  );
+
+  people.push({
+    object:p,
+    speed:.7+Math.random()*.7,
+    direction:side
+  });
+
+}
+
+
+// people near Police Station
+
+for(
+  let i=0;
+  i<8;
+  i++
+){
+
+  people.push({
+    object:
+      person(
+        60+Math.random()*70,
+        -105+Math.random()*20,
+        shirtColors[i%shirtColors.length],
+        0x333333,
+        .8
+      ),
+    speed:.5+Math.random(),
+    direction:i%2?1:-1
+  });
+
+}
+
+
+// ======================================================
+// PLAYER
+// ======================================================
+
+const player=
+new THREE.Group();
+
+const playerBody=
+new THREE.Mesh(
+  new THREE.CapsuleGeometry(
+    .55,
+    1.2,
+    6,
+    10
+  ),
+  material(0x23539c)
+);
+
+playerBody.position.y=1.25;
+playerBody.castShadow=true;
+
+player.add(playerBody);
+
+
+const playerHead=
+new THREE.Mesh(
+  new THREE.SphereGeometry(
+    .43,
+    12,
+    10
+  ),
+  material(0x8b552f)
+);
+
+playerHead.position.y=2.4;
+
+player.add(playerHead);
+
+
+player.position.set(
+  0,
+  0,
+  165
+);
+
+scene.add(player);
+
+
+// ======================================================
+// JOYSTICK
+// ======================================================
+
+const joystick=
+document.getElementById(
+  "joystick"
+);
+
+const stick=
+document.getElementById(
+  "stick"
+);
+
+let joyX=0;
+let joyY=0;
+let touching=false;
+
+
+function joystickMove(
+  x,y
+){
+
+  const r=
+  joystick.getBoundingClientRect();
+
+  let dx=
+    x-(r.left+r.width/2);
+
+  let dy=
+    y-(r.top+r.height/2);
+
+  const max=42;
+
+  const dist=
+    Math.sqrt(dx*dx+dy*dy);
+
+  if(dist>max){
+
+    dx=dx/dist*max;
+    dy=dy/dist*max;
+
+  }
+
+  joyX=dx/max;
+  joyY=dy/max;
+
+  stick.style.transform=
+    `translate(${dx}px,${dy}px)`;
+
+}
+
+
+function joystickReset(){
+
+  joyX=0;
+  joyY=0;
+
+  stick.style.transform=
+    "translate(0,0)";
+
+  touching=false;
+
+}
+
+
+joystick.addEventListener(
+  "pointerdown",
+  e=>{
+
+    touching=true;
+
+    joystick.setPointerCapture(
+      e.pointerId
+    );
+
+    joystickMove(
+      e.clientX,
+      e.clientY
+    );
+
+  }
+);
+
+
+joystick.addEventListener(
+  "pointermove",
+  e=>{
+
+    if(touching)
+      joystickMove(
+        e.clientX,
+        e.clientY
+      );
+
+  }
+);
+
+
+joystick.addEventListener(
+  "pointerup",
+  joystickReset
+);
+
+joystick.addEventListener(
+  "pointercancel",
+  joystickReset
+);
+
+
+// ======================================================
+// PLAYER HEIGHT
+// ======================================================
+
+let onFlyover=false;
+
+
+function firstFlyoverHeight(z){
+
+  if(
+    z>=-85 &&
+    z<-55
+  ){
+
+    return(
+      ((z+85)/30)*8
+    );
+
+  }
+
+  if(
+    z>=-55 &&
+    z<=55
+  ){
+
+    return 8;
+
+  }
+
+  if(
+    z>55 &&
+    z<=85
+  ){
+
+    return(
+      ((85-z)/30)*8
+    );
+
+  }
+
+  return 0;
+
+}
+
+
+function secondFlyoverHeight(
+  x,z
+){
+
+  // second flyover crosses the
+  // Challenge/Police direction
+
+  if(
+    Math.abs(z+120)<7
+  ){
+
+    if(
+      x>=45 &&
+      x<90
+    ){
+
+      return(
+        ((x-45)/45)*7
+      );
+
+    }
+
+    if(
+      x>=90 &&
+      x<=165
+    ){
+
+      return 7;
+
+    }
+
+    if(
+      x>165 &&
+      x<=210
+    ){
+
+      return(
+        ((210-x)/45)*7
+      );
+
+    }
+
+  }
+
+  return 0;
+
+}
+
+
+// ======================================================
+// PLAYER MOVEMENT
+// ======================================================
+
+const clock=
+new THREE.Clock();
+
+let walkTime=0;
+
+
+function movePlayer(dt){
+
+  const turnSpeed=
+    2.45*dt;
+
+  const speed=
+    15*dt;
+
+
+  player.rotation.y -=
+    joyX*turnSpeed;
+
+
+  const forward=
+    -joyY;
+
+
+  if(
+    Math.abs(forward)>.05
+  ){
+
+    const dir=
+    new THREE.Vector3(
+      0,
+      0,
+      forward
+    );
+
+    dir.applyAxisAngle(
+      new THREE.Vector3(0,1,0),
+      player.rotation.y
+    );
+
+    player.position.addScaledVector(
+      dir,
+      speed
+    );
+
+    walkTime+=dt*10;
+
+  }
+
+
+  const x=
+    player.position.x;
+
+  const z=
+    player.position.z;
+
+
+  // First flyover
+  if(
+    Math.abs(x)<7 &&
+    z>-87 &&
+    z<87
+  ){
+
+    // Only climb if the player
+    // approaches a ramp.
+    if(
+      z<-55 ||
+      z>55 ||
+      onFlyover
+    ){
+
+      onFlyover=true;
+
+    }
+
+  }
+
+
+  if(onFlyover){
+
+    player.position.x=
+      THREE.MathUtils.clamp(
+        player.position.x,
+        -6.3,
+        6.3
+      );
+
+    player.position.y=
+      firstFlyoverHeight(
+        player.position.z
+      );
+
+    if(
+      player.position.z<-89 ||
+      player.position.z>89
+    ){
+
+      onFlyover=false;
+      player.position.y=0;
+
+    }
+
+  }else{
+
+    // second flyover
+    const h2=
+      secondFlyoverHeight(
+        player.position.x,
+        player.position.z
+      );
+
+    if(
+      h2>0 &&
+      Math.abs(
+        player.position.z+120
+      )<7
+    ){
+
+      player.position.y=h2;
+
+    }else{
+
+      player.position.y=0;
+
+    }
+
+  }
+
+
+  player.position.x=
+    THREE.MathUtils.clamp(
+      player.position.x,
+      -145,
+      250
+    );
+
+  player.position.z=
+    THREE.MathUtils.clamp(
+      player.position.z,
+      -230,
+      230
+    );
+
+
+  if(
+    Math.abs(forward)>.05
+  ){
+
+    playerBody.position.y=
+      1.25+
+      Math.sin(walkTime)*.04;
+
+  }else{
+
+    playerBody.position.y=1.25;
+
+  }
+
+}
+
+
+// ======================================================
+// TRAFFIC MOVEMENT
+// ======================================================
+
+function updateTraffic(dt){
+
+  for(
+    const t of trafficCars
+  ){
+
+    t.object.position.z +=
+      t.speed*dt;
+
+    if(
+      t.object.position.z>235
+    ){
+
+      t.object.position.z=-235;
+
+    }
+
+    if(
+      t.object.position.z<-235
+    ){
+
+      t.object.position.z=235;
+
+    }
+
+  }
+
+
+  for(
+    const t of challengeCars
+  ){
+
+    t.object.position.x +=
+      t.speed*dt;
+
+    if(
+      t.object.position.x>230
+    ){
+
+      t.object.position.x=20;
+
+    }
+
+  }
+
+}
+
+
+// ======================================================
+// PEOPLE MOVEMENT
+// ======================================================
+
+function updatePeople(dt){
+
+  for(
+    const p of people
+  ){
+
+    p.object.position.z +=
+      p.speed*
+      p.direction*
+      dt;
+
+    if(
+      p.object.position.z>205
+    ){
+
+      p.object.position.z=-205;
+
+    }
+
+    if(
+      p.object.position.z<-205
+    ){
+
+      p.object.position.z=205;
+
+    }
+
+  }
+
+}
+
+
+// ======================================================
+// CAMERA
+// ======================================================
+
+const desiredCamera=
+new THREE.Vector3();
+
+const target=
+new THREE.Vector3();
+
+
+function updateCamera(){
+
+  const behind=
+    new THREE.Vector3(
+      0,
+      6.5,
+      10
+    );
+
+  behind.applyAxisAngle(
+    new THREE.Vector3(0,1,0),
+    player.rotation.y
+  );
+
+  desiredCamera.copy(
+    player.position
+  );
+
+  desiredCamera.add(
+    behind
+  );
+
+
+  // Camera never enters floor
+
+  desiredCamera.y=
+    Math.max(
+      desiredCamera.y,
+      player.position.y+2.5
+    );
+
+
+  camera.position.lerp(
+    desiredCamera,
+    .09
+  );
+
+
+  target.copy(
+    player.position
+  );
+
+  target.y+=1.8;
+
+  camera.lookAt(target);
+
+}
+
+
+// ======================================================
+// LOCATION
+// ======================================================
+
+const locationBox=
+document.getElementById(
+  "location"
+);
+
+
+function updateLocation(){
+
+  const x=
+    player.position.x;
+
+  const z=
+    player.position.z;
+
+
+  if(onFlyover){
+
+    locationBox.textContent=
+      "📍 POST OFFICE FLYOVER — UPPER ROAD";
+
+    return;
+
+  }
+
+
+  if(
+    x>55 &&
+    z>-155 &&
+    z<-75
+  ){
+
+    locationBox.textContent=
+      "📍 POLICE STATION / SECOND FLYOVER";
+
+    return;
+
+  }
+
+
+  if(
+    z>-90 &&
+    z<90
+  ){
+
+    locationBox.textContent=
+      "📍 UNDER POST OFFICE FLYOVER";
+
+    return;
+
+  }
+
+
+  if(z>120){
+
+    locationBox.textContent=
+      "📍 MARABA → GENERAL POST OFFICE";
+
+    return;
+
+  }
+
+
+  if(z<-120){
+
+    locationBox.textContent=
+      "📍 CHALLENGE / OFFA GARAGE DIRECTION";
+
+    return;
+
+  }
+
+
+  locationBox.textContent=
+    "📍 ILORIN CITY STREETS";
+
+}
+
+
+// ======================================================
+// CLOUDS
+// ======================================================
+
+function cloud(
+  x,y,z
+){
+
+  const g=
+    new THREE.Group();
+
+  for(
+    let i=0;
+    i<5;
+    i++
+  ){
+
+    const puff=
+      new THREE.Mesh(
+        new THREE.SphereGeometry(
+          4+Math.random()*2,
+          8,
+          8
+        ),
+        new THREE.MeshStandardMaterial({
+          color:0xffffff,
+          transparent:true,
+          opacity:.82
+        })
+      );
+
+    puff.position.set(
+      i*4,
+      Math.random()*1.5,
+      Math.random()*2
+    );
+
+    g.add(puff);
+
+  }
+
+  g.position.set(
+    x,y,z
+  );
+
+  scene.add(g);
+
+}
+
+cloud(-80,55,-100);
+cloud(70,70,-160);
+cloud(10,62,120);
+
+
+// ======================================================
+// RESIZE
+// ======================================================
+
+addEventListener(
+  "resize",
+  ()=>{
+
+    camera.aspect=
+      innerWidth/innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      innerWidth,
+      innerHeight
+    );
+
+  }
+);
+
+
+// ======================================================
+// GAME LOOP
+// ======================================================
+
+function animate(){
+
+  requestAnimationFrame(
+    animate
+  );
+
+  const dt=
+    Math.min(
+      clock.getDelta(),
+      .05
+    );
+
+
+  movePlayer(dt);
+
+  updateTraffic(dt);
+
+  updatePeople(dt);
+
+  updateCamera();
+
+  updateLocation();
+
+
+  renderer.render(
+    scene,
+    camera
+  );
+
+}
+
+animate();
+
+</script>
+
+</body>
+</html>
