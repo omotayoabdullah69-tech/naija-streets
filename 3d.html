@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Naija Streets 3D</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111;
+      font-family: Arial, sans-serif;
+    }
+
+    #game {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #hud {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 10;
+      color: white;
+      background: rgba(0, 0, 0, 0.65);
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+    }
+
+    #title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    #location {
+      color: #7cff8a;
+    }
+
+    #controls {
+      position: fixed;
+      bottom: 25px;
+      left: 25px;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: 60px 60px 60px;
+      grid-template-rows: 60px 60px;
+      gap: 6px;
+    }
+
+    button {
+      border: none;
+      border-radius: 15px;
+      background: rgba(0, 0, 0, 0.65);
+      color: white;
+      font-size: 25px;
+      font-weight: bold;
+      touch-action: none;
+    }
+
+    button:active {
+      background: rgba(40, 180, 80, 0.8);
+    }
+
+    #up {
+      grid-column: 2;
+    }
+
+    #left {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    #down {
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    #right {
+      grid-column: 3;
+      grid-row: 2;
+    }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #111;
+      color: white;
+      font-size: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="loading">Loading Naija Streets 3D...</div>
+
+<div id="hud">
+  <div id="title">🇳🇬 NAIJA STREETS</div>
+  <div>₦ <span id="money">5,000</span></div>
+  <div>Respect: <span id="respect">10</span></div>
+  <div id="location">ILORIN, KWARA STATE</div>
+</div>
+
+<canvas id="game"></canvas>
+
+<div id="controls">
+  <button id="up">▲</button>
+  <button id="left">◀</button>
+  <button id="down">▼</button>
+  <button id="right">▶</button>
+</div>
+
+<script type="module">
+
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+const canvas = document.getElementById("game");
+
+
+// -------------------------
+// 3D WORLD
+// -------------------------
+
+const scene = new THREE.Scene();
+
+scene.background = new THREE.Color(0x87ceeb);
+
+
+// -------------------------
+// CAMERA
+// -------------------------
+
+const camera = new THREE.PerspectiveCamera(
+  65,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+
+
+// -------------------------
+// RENDERER
+// -------------------------
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: canvas,
+  antialias: true
+});
+
+renderer.setPixelRatio(
+  Math.min(window.devicePixelRatio, 2)
+);
+
+renderer.setSize(
+  window.innerWidth,
+  window.innerHeight
+);
+
+renderer.shadowMap.enabled = true;
+
+
+// -------------------------
+// LIGHTING
+// -------------------------
+
+const sunlight = new THREE.DirectionalLight(
+  0xffffff,
+  2
+);
+
+sunlight.position.set(50, 100, 50);
+sunlight.castShadow = true;
+
+scene.add(sunlight);
+
+
+const ambient = new THREE.AmbientLight(
+  0xffffff,
+  0.7
+);
+
+scene.add(ambient);
+
+
+// -------------------------
+// GROUND
+// -------------------------
+
+const groundGeometry =
+  new THREE.PlaneGeometry(300, 300);
+
+const groundMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0x4d8c45
+  });
+
+const ground =
+  new THREE.Mesh(
+    groundGeometry,
+    groundMaterial
+  );
+
+ground.rotation.x = -Math.PI / 2;
+
+ground.receiveShadow = true;
+
+scene.add(ground);
+
+
+// -------------------------
+// ROADS
+// -------------------------
+
+function createRoad(x, z, width, length) {
+
+  const geometry =
+    new THREE.BoxGeometry(
+      width,
+      0.15,
+      length
+    );
+
+  const material =
+    new THREE.MeshStandardMaterial({
+      color: 0x292929
+    });
+
+  const road =
+    new THREE.Mesh(
+      geometry,
+      material
+    );
+
+  road.position.set(
+    x,
+    0.08,
+    z
+  );
+
+  scene.add(road);
+}
+
+
+// Main Ilorin-style street
+
+createRoad(0, 0, 18, 300);
+createRoad(0, 0, 300, 18);
+
+
+// -------------------------
+// BUILDINGS
+// -------------------------
+
+function createBuilding(
+  x,
+  z,
+  width,
+  height,
+  depth,
+  color
+) {
+
+  const geometry =
+    new THREE.BoxGeometry(
+      width,
+      height,
+      depth
+    );
+
+  const material =
+    new THREE.MeshStandardMaterial({
+      color: color
+    });
+
+  const building =
+    new THREE.Mesh(
+      geometry,
+      material
+    );
+
+  building.position.set(
+    x,
+    height / 2,
+    z
+  );
+
+  building.castShadow = true;
+  building.receiveShadow = true;
+
+  scene.add(building);
+}
+
+
+// Nigerian street buildings
+
+createBuilding(
+  -28, -30,
+  25, 12, 25,
+  0xc98252
+);
+
+createBuilding(
+  30, -35,
+  30, 15, 25,
+  0xd8c39a
+);
+
+createBuilding(
+  -35, 35,
+  25, 10, 30,
+  0xe0b05c
+);
+
+createBuilding(
+  35, 35,
+  30, 18, 25,
+  0xb86b55
+);
+
+
+// -------------------------
+// PLAYER
+// -------------------------
+
+const player = new THREE.Group();
+
+
+// body
+
+const bodyGeometry =
+  new THREE.CapsuleGeometry(
+    0.8,
+    1.8,
+    4,
+    8
+  );
+
+const bodyMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0x222222
+  });
+
+const body =
+  new THREE.Mesh(
+    bodyGeometry,
+    bodyMaterial
+  );
+
+body.position.y = 1.8;
+
+body.castShadow = true;
+
+player.add(body);
+
+
+// head
+
+const headGeometry =
+  new THREE.SphereGeometry(
+    0.55,
+    16,
+    16
+  );
+
+const headMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0x8d5524
+  });
+
+const head =
+  new THREE.Mesh(
+    headGeometry,
+    headMaterial
+  );
+
+head.position.y = 3.1;
+
+head.castShadow = true;
+
+player.add(head);
+
+
+player.position.set(
+  0,
+  0,
+  25
+);
+
+scene.add(player);
+
+
+// -------------------------
+// CAMERA START
+// -------------------------
+
+camera.position.set(
+  0,
+  6,
+  35
+);
+
+
+// -------------------------
+// MOVEMENT
+// -------------------------
+
+const keys = {
+  up: false,
+  down: false,
+  left: false,
+  right: false
+};
+
+
+function setKey(name, value) {
+  keys[name] = value;
+}
+
+
+// Keyboard
+
+window.addEventListener(
+  "keydown",
+  event => {
+
+    if (event.key === "ArrowUp" ||
+        event.key.toLowerCase() === "w") {
+
+      setKey("up", true);
+    }
+
+    if (event.key === "ArrowDown" ||
+        event.key.toLowerCase() === "s") {
+
+      setKey("down", true);
+    }
+
+    if (event.key === "ArrowLeft" ||
+        event.key.toLowerCase() === "a") {
+
+      setKey("left", true);
+    }
+
+    if (event.key === "ArrowRight" ||
+        event.key.toLowerCase() === "d") {
+
+      setKey("right", true);
+    }
+  }
+);
+
+
+window.addEventListener(
+  "keyup",
+  event => {
+
+    if (event.key === "ArrowUp" ||
+        event.key.toLowerCase() === "w") {
+
+      setKey("up", false);
+    }
+
+    if (event.key === "ArrowDown" ||
+        event.key.toLowerCase() === "s") {
+
+      setKey("down", false);
+    }
+
+    if (event.key === "ArrowLeft" ||
+        event.key.toLowerCase() === "a") {
+
+      setKey("left", false);
+    }
+
+    if (event.key === "ArrowRight" ||
+        event.key.toLowerCase() === "d") {
+
+      setKey("right", false);
+    }
+  }
+);
+
+
+// Mobile buttons
+
+function mobileButton(id, key) {
+
+  const button =
+    document.getElementById(id);
+
+  button.addEventListener(
+    "touchstart",
+    event => {
+
+      event.preventDefault();
+
+      setKey(key, true);
+    },
+    { passive: false }
+  );
+
+  button.addEventListener(
+    "touchend",
+    event => {
+
+      event.preventDefault();
+
+      setKey(key, false);
+    },
+    { passive: false }
+  );
+
+  button.addEventListener(
+    "touchcancel",
+    () => {
+
+      setKey(key, false);
+    }
+  );
+}
+
+
+mobileButton("up", "up");
+mobileButton("down", "down");
+mobileButton("left", "left");
+mobileButton("right", "right");
+
+
+// -------------------------
+// GAME LOOP
+// -------------------------
+
+const clock = new THREE.Clock();
+
+function animate() {
+
+  requestAnimationFrame(animate);
+
+  const delta =
+    Math.min(clock.getDelta(), 0.05);
+
+  const speed = 10 * delta;
+
+
+  if (keys.up) {
+    player.position.z -= speed;
+  }
+
+  if (keys.down) {
+    player.position.z += speed;
+  }
+
+  if (keys.left) {
+    player.position.x -= speed;
+  }
+
+  if (keys.right) {
+    player.position.x += speed;
+  }
+
+
+  // Camera follows player
+
+  const desiredCamera =
+    new THREE.Vector3(
+      player.position.x,
+      player.position.y + 6,
+      player.position.z + 10
+    );
+
+  camera.position.lerp(
+    desiredCamera,
+    0.08
+  );
+
+
+  const target =
+    new THREE.Vector3(
+      player.position.x,
+      player.position.y + 1.8,
+      player.position.z
+    );
+
+  camera.lookAt(target);
+
+
+  renderer.render(
+    scene,
+    camera
+  );
+}
+
+
+animate();
+
+
+// -------------------------
+// RESIZE
+// -------------------------
+
+window.addEventListener(
+  "resize",
+  () => {
+
+    camera.aspect =
+      window.innerWidth /
+      window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      window.innerWidth,
+      window.innerHeight
+    );
+  }
+);
+
+
+document.getElementById(
+  "loading"
+).style.display = "none";
+
+</script>
+
+</body>
+</html>
