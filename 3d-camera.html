@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <title>Naija Streets 3D</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #111;
+      font-family: Arial, sans-serif;
+      touch-action: none;
+    }
+
+    #game {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* ================= HUD ================= */
+
+    #hud {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 20;
+
+      color: white;
+      background: rgba(0,0,0,.65);
+
+      padding: 12px 16px;
+      border-radius: 12px;
+
+      font-size: 14px;
+      pointer-events: none;
+    }
+
+    #title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    #location {
+      color: #7cff8a;
+    }
+
+    /* ================= JOYSTICK ================= */
+
+    #joystick {
+      position: fixed;
+
+      left: 25px;
+      bottom: 30px;
+
+      width: 150px;
+      height: 150px;
+
+      border-radius: 50%;
+
+      background: rgba(0,0,0,.35);
+
+      border: 3px solid rgba(255,255,255,.35);
+
+      z-index: 30;
+
+      touch-action: none;
+    }
+
+    #stick {
+      position: absolute;
+
+      left: 50%;
+      top: 50%;
+
+      width: 62px;
+      height: 62px;
+
+      transform: translate(-50%,-50%);
+
+      border-radius: 50%;
+
+      background: rgba(255,255,255,.7);
+
+      border: 3px solid rgba(255,255,255,.9);
+
+      pointer-events: none;
+    }
+
+    /* ================= CAMERA AREA ================= */
+
+    #cameraArea {
+      position: fixed;
+
+      top: 0;
+      right: 0;
+
+      width: 55%;
+      height: 100%;
+
+      z-index: 15;
+
+      touch-action: none;
+    }
+
+    /* ================= BUTTONS ================= */
+
+    #buttons {
+      position: fixed;
+
+      right: 25px;
+      bottom: 25px;
+
+      width: 180px;
+      height: 190px;
+
+      z-index: 40;
+
+      pointer-events: none;
+    }
+
+    .button {
+      position: absolute;
+
+      width: 62px;
+      height: 62px;
+
+      border-radius: 50%;
+
+      background: rgba(0,0,0,.55);
+
+      border: 2px solid rgba(255,255,255,.45);
+
+      color: white;
+
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      font-size: 11px;
+      font-weight: bold;
+
+      pointer-events: auto;
+
+      user-select: none;
+      touch-action: none;
+    }
+
+    .button:active {
+      background: rgba(40,180,80,.85);
+      transform: scale(.94);
+    }
+
+    #run {
+      right: 0;
+      top: 0;
+    }
+
+    #jump {
+      left: 0;
+      top: 40px;
+    }
+
+    #action {
+      right: 25px;
+      bottom: 5px;
+    }
+
+    #drive {
+      left: 5px;
+      bottom: 0;
+    }
+
+    /* ================= LOADING ================= */
+
+    #loading {
+      position: fixed;
+      inset: 0;
+
+      z-index: 100;
+
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      background: #111;
+
+      color: white;
+
+      font-size: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="loading">
+  Loading Naija Streets 3D...
+</div>
+
+<div id="hud">
+
+  <div id="title">
+    🇳🇬 NAIJA STREETS
+  </div>
+
+  <div>
+    ₦ <span id="money">5,000</span>
+  </div>
+
+  <div>
+    Respect: <span id="respect">10</span>
+  </div>
+
+  <div id="location">
+    ILORIN, KWARA STATE
+  </div>
+
+</div>
+
+<canvas id="game"></canvas>
+
+
+<!-- Movement joystick -->
+
+<div id="joystick">
+  <div id="stick"></div>
+</div>
+
+
+<!-- Camera touch area -->
+
+<div id="cameraArea"></div>
+
+
+<!-- Action buttons -->
+
+<div id="buttons">
+
+  <div class="button" id="run">
+    RUN
+  </div>
+
+  <div class="button" id="jump">
+    JUMP
+  </div>
+
+  <div class="button" id="action">
+    ACTION
+  </div>
+
+  <div class="button" id="drive">
+    DRIVE
+  </div>
+
+</div>
+
+
+<script type="module">
+
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+
+// ======================================================
+// SCENE
+// ======================================================
+
+const canvas =
+  document.getElementById("game");
+
+const scene =
+  new THREE.Scene();
+
+scene.background =
+  new THREE.Color(0x87ceeb);
+
+
+// ======================================================
+// CAMERA
+// ======================================================
+
+const camera =
+  new THREE.PerspectiveCamera(
+    65,
+    window.innerWidth /
+    window.innerHeight,
+    0.1,
+    1000
+  );
+
+
+// ======================================================
+// RENDERER
+// ======================================================
+
+const renderer =
+  new THREE.WebGLRenderer({
+    canvas: canvas,
+    antialias: true
+  });
+
+renderer.setPixelRatio(
+  Math.min(
+    window.devicePixelRatio,
+    2
+  )
+);
+
+renderer.setSize(
+  window.innerWidth,
+  window.innerHeight
+);
+
+renderer.shadowMap.enabled = true;
+
+
+// ======================================================
+// LIGHT
+// ======================================================
+
+const sunlight =
+  new THREE.DirectionalLight(
+    0xffffff,
+    2
+  );
+
+sunlight.position.set(
+  50,
+  100,
+  50
+);
+
+sunlight.castShadow = true;
+
+scene.add(sunlight);
+
+
+scene.add(
+  new THREE.AmbientLight(
+    0xffffff,
+    0.7
+  )
+);
+
+
+// ======================================================
+// GROUND
+// ======================================================
+
+const ground =
+  new THREE.Mesh(
+    new THREE.PlaneGeometry(
+      300,
+      300
+    ),
+
+    new THREE.MeshStandardMaterial({
+      color: 0x4d8c45
+    })
+  );
+
+ground.rotation.x =
+  -Math.PI / 2;
+
+ground.receiveShadow = true;
+
+scene.add(ground);
+
+
+// ======================================================
+// ROADS
+// ======================================================
+
+function createRoad(
+  x,
+  z,
+  width,
+  length
+) {
+
+  const road =
+    new THREE.Mesh(
+      new THREE.BoxGeometry(
+        width,
+        .15,
+        length
+      ),
+
+      new THREE.MeshStandardMaterial({
+        color: 0x292929
+      })
+    );
+
+  road.position.set(
+    x,
+    .08,
+    z
+  );
+
+  scene.add(road);
+}
+
+
+createRoad(
+  0,
+  0,
+  18,
+  300
+);
+
+createRoad(
+  0,
+  0,
+  300,
+  18
+);
+
+
+// ======================================================
+// BUILDINGS
+// ======================================================
+
+function createBuilding(
+  x,
+  z,
+  width,
+  height,
+  depth,
+  color
+) {
+
+  const building =
+    new THREE.Mesh(
+
+      new THREE.BoxGeometry(
+        width,
+        height,
+        depth
+      ),
+
+      new THREE.MeshStandardMaterial({
+        color: color
+      })
+    );
+
+  building.position.set(
+    x,
+    height / 2,
+    z
+  );
+
+  building.castShadow = true;
+
+  building.receiveShadow = true;
+
+  scene.add(building);
+}
+
+
+createBuilding(
+  -28,
+  -30,
+  25,
+  12,
+  25,
+  0xc98252
+);
+
+createBuilding(
+  30,
+  -35,
+  30,
+  15,
+  25,
+  0xd8c39a
+);
+
+createBuilding(
+  -35,
+  35,
+  25,
+  10,
+  30,
+  0xe0b05c
+);
+
+createBuilding(
+  35,
+  35,
+  30,
+  18,
+  25,
+  0xb86b55
+);
+
+
+// ======================================================
+// PLAYER
+// ======================================================
+
+const player =
+  new THREE.Group();
+
+
+const body =
+  new THREE.Mesh(
+
+    new THREE.CapsuleGeometry(
+      .8,
+      1.8,
+      4,
+      8
+    ),
+
+    new THREE.MeshStandardMaterial({
+      color: 0x222222
+    })
+  );
+
+body.position.y = 1.8;
+
+body.castShadow = true;
+
+player.add(body);
+
+
+const head =
+  new THREE.Mesh(
+
+    new THREE.SphereGeometry(
+      .55,
+      16,
+      16
+    ),
+
+    new THREE.MeshStandardMaterial({
+      color: 0x8d5524
+    })
+  );
+
+head.position.y = 3.1;
+
+head.castShadow = true;
+
+player.add(head);
+
+
+player.position.set(
+  0,
+  0,
+  25
+);
+
+scene.add(player);
+
+
+// ======================================================
+// CAMERA SETTINGS
+// ======================================================
+
+let cameraYaw = 0;
+
+let cameraPitch = 0.25;
+
+let cameraDistance = 8;
+
+const cameraHeight = 3;
+
+
+// ======================================================
+// JOYSTICK
+// ======================================================
+
+const joystick =
+  document.getElementById(
+    "joystick"
+  );
+
+const stick =
+  document.getElementById(
+    "stick"
+  );
+
+let joyX = 0;
+
+let joyY = 0;
+
+let joyActive = false;
+
+let joyPointer = null;
+
+const joyRadius = 45;
+
+
+function updateJoystick(
+  x,
+  y
+) {
+
+  const rect =
+    joystick.getBoundingClientRect();
+
+  const centerX =
+    rect.left +
+    rect.width / 2;
+
+  const centerY =
+    rect.top +
+    rect.height / 2;
+
+  let dx =
+    x - centerX;
+
+  let dy =
+    y - centerY;
+
+  const distance =
+    Math.sqrt(
+      dx * dx +
+      dy * dy
+    );
+
+
+  if (
+    distance >
+    joyRadius
+  ) {
+
+    dx =
+      dx / distance *
+      joyRadius;
+
+    dy =
+      dy / distance *
+      joyRadius;
+  }
+
+
+  joyX =
+    dx / joyRadius;
+
+  joyY =
+    dy / joyRadius;
+
+
+  stick.style.transform =
+    `translate(
+      calc(-50% + ${dx}px),
+      calc(-50% + ${dy}px)
+    )`;
+}
+
+
+function resetJoystick() {
+
+  joyX = 0;
+
+  joyY = 0;
+
+  joyActive = false;
+
+  joyPointer = null;
+
+  stick.style.transform =
+    "translate(-50%,-50%)";
+}
+
+
+joystick.addEventListener(
+  "pointerdown",
+  event => {
+
+    joyActive = true;
+
+    joyPointer =
+      event.pointerId;
+
+    joystick.setPointerCapture(
+      event.pointerId
+    );
+
+    updateJoystick(
+      event.clientX,
+      event.clientY
+    );
+  }
+);
+
+
+joystick.addEventListener(
+  "pointermove",
+  event => {
+
+    if (
+      !joyActive ||
+      event.pointerId !==
+      joyPointer
+    ) {
+      return;
+    }
+
+    updateJoystick(
+      event.clientX,
+      event.clientY
+    );
+  }
+);
+
+
+joystick.addEventListener(
+  "pointerup",
+  resetJoystick
+);
+
+
+joystick.addEventListener(
+  "pointercancel",
+  resetJoystick
+);
+
+
+// ======================================================
+// CAMERA LOOK
+// ======================================================
+
+const cameraArea =
+  document.getElementById(
+    "cameraArea"
+  );
+
+let cameraPointer = null;
+
+let cameraDragging = false;
+
+let previousX = 0;
+
+let previousY = 0;
+
+
+cameraArea.addEventListener(
+  "pointerdown",
+  event => {
+
+    cameraDragging = true;
+
+    cameraPointer =
+      event.pointerId;
+
+    previousX =
+      event.clientX;
+
+    previousY =
+      event.clientY;
+
+    cameraArea.setPointerCapture(
+      event.pointerId
+    );
+  }
+);
+
+
+cameraArea.addEventListener(
+  "pointermove",
+  event => {
+
+    if (
+      !cameraDragging ||
+      event.pointerId !==
+      cameraPointer
+    ) {
+      return;
+    }
+
+
+    const dx =
+      event.clientX -
+      previousX;
+
+    const dy =
+      event.clientY -
+      previousY;
+
+
+    previousX =
+      event.clientX;
+
+    previousY =
+      event.clientY;
+
+
+    // Horizontal camera rotation
+
+    cameraYaw -=
+      dx * 0.008;
+
+
+    // Vertical camera rotation
+
+    cameraPitch -=
+      dy * 0.006;
+
+
+    // Prevent flipping upside down
+
+    cameraPitch =
+      Math.max(
+        -0.9,
+        Math.min(
+          1.0,
+          cameraPitch
+        )
+      );
+  }
+);
+
+
+function stopCamera() {
+
+  cameraDragging = false;
+
+  cameraPointer = null;
+}
+
+
+cameraArea.addEventListener(
+  "pointerup",
+  stopCamera
+);
+
+cameraArea.addEventListener(
+  "pointercancel",
+  stopCamera
+);
+
+
+// ======================================================
+// RUN
+// ======================================================
+
+let running = false;
+
+const runButton =
+  document.getElementById(
+    "run"
+  );
+
+
+runButton.addEventListener(
+  "pointerdown",
+  () => {
+    running = true;
+  }
+);
+
+
+runButton.addEventListener(
+  "pointerup",
+  () => {
+    running = false;
+  }
+);
+
+
+runButton.addEventListener(
+  "pointercancel",
+  () => {
+    running = false;
+  }
+);
+
+
+// ======================================================
+// JUMP
+// ======================================================
+
+let jumpTimer = 0;
+
+const jumpButton =
+  document.getElementById(
+    "jump"
+  );
+
+
+jumpButton.addEventListener(
+  "pointerdown",
+  () => {
+
+    if (jumpTimer <= 0) {
+
+      jumpTimer = 0.7;
+
+    }
+
+  }
+);
+
+
+// ======================================================
+// KEYBOARD SUPPORT
+// ======================================================
+
+const keys = {};
+
+
+window.addEventListener(
+  "keydown",
+  event => {
+
+    keys[
+      event.key.toLowerCase()
+    ] = true;
+
+  }
+);
+
+
+window.addEventListener(
+  "keyup",
+  event => {
+
+    keys[
+      event.key.toLowerCase()
+    ] = false;
+
+  }
+);
+
+
+// ======================================================
+// GAME LOOP
+// ======================================================
+
+const clock =
+  new THREE.Clock();
+
+
+function animate() {
+
+  requestAnimationFrame(
+    animate
+  );
+
+
+  const delta =
+    Math.min(
+      clock.getDelta(),
+      .05
+    );
+
+
+  // --------------------------------
+  // Movement input
+  // --------------------------------
+
+  let inputX =
+    joyX;
+
+  let inputY =
+    joyY;
+
+
+  if (keys["w"] ||
+      keys["arrowup"]) {
+
+    inputY = -1;
+
+  }
+
+  if (keys["s"] ||
+      keys["arrowdown"]) {
+
+    inputY = 1;
+
+  }
+
+  if (keys["a"] ||
+      keys["arrowleft"]) {
+
+    inputX = -1;
+
+  }
+
+  if (keys["d"] ||
+      keys["arrowright"]) {
+
+    inputX = 1;
+
+  }
+
+
+  // --------------------------------
+  // Speed
+  // --------------------------------
+
+  const speed =
+    running
+      ? 14
+      : 7;
+
+
+  // --------------------------------
+  // Camera-relative movement
+  // --------------------------------
+
+  const forward =
+    new THREE.Vector3(
+      -Math.sin(cameraYaw),
+      0,
+      -Math.cos(cameraYaw)
+    );
+
+
+  const right =
+    new THREE.Vector3(
+      Math.cos(cameraYaw),
+      0,
+      -Math.sin(cameraYaw)
+    );
+
+
+  const movement =
+    new THREE.Vector3();
+
+
+  movement.addScaledVector(
+    forward,
+    -inputY
+  );
+
+
+  movement.addScaledVector(
+    right,
+    inputX
+  );
+
+
+  if (
+    movement.length() > 0.01
+  ) {
+
+    movement.normalize();
+
+    player.position.addScaledVector(
+      movement,
+      speed * delta
+    );
+
+
+    // Turn character toward movement
+
+    const targetRotation =
+      Math.atan2(
+        movement.x,
+        movement.z
+      );
+
+
+    player.rotation.y +=
+      THREE.MathUtils.angleDifference(
+        player.rotation.y,
+        targetRotation
+      ) * 0.15;
+  }
+
+
+  // --------------------------------
+  // Jump
+  // --------------------------------
+
+  if (jumpTimer > 0) {
+
+    jumpTimer -= delta;
+
+    const progress =
+      1 -
+      jumpTimer / 0.7;
+
+    player.position.y =
+      Math.sin(
+        progress * Math.PI
+      ) * 1.5;
+
+  } else {
+
+    player.position.y = 0;
+
+  }
+
+
+  // --------------------------------
+  // Third-person camera
+  // --------------------------------
+
+  const horizontalDistance =
+    cameraDistance *
+    Math.cos(cameraPitch);
+
+
+  const verticalDistance =
+    cameraDistance *
+    Math.sin(cameraPitch);
+
+
+  const cameraX =
+    player.position.x +
+    Math.sin(cameraYaw) *
+    horizontalDistance;
+
+
+  const cameraZ =
+    player.position.z +
+    Math.cos(cameraYaw) *
+    horizontalDistance;
+
+
+  const desiredCamera =
+    new THREE.Vector3(
+      cameraX,
+      player.position.y +
+      cameraHeight +
+      verticalDistance,
+      cameraZ
+    );
+
+
+  camera.position.lerp(
+    desiredCamera,
+    0.12
+  );
+
+
+  const target =
+    new THREE.Vector3(
+      player.position.x,
+      player.position.y + 1.8,
+      player.position.z
+    );
+
+
+  camera.lookAt(
+    target
+  );
+
+
+  renderer.render(
+    scene,
+    camera
+  );
+}
+
+
+animate();
+
+
+// ======================================================
+// RESIZE
+// ======================================================
+
+window.addEventListener(
+  "resize",
+  () => {
+
+    camera.aspect =
+      window.innerWidth /
+      window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      window.innerWidth,
+      window.innerHeight
+    );
+
+  }
+);
+
+
+// ======================================================
+// START
+// ======================================================
+
+document.getElementById(
+  "loading"
+).style.display = "none";
+
+</script>
+
+</body>
+</html>
