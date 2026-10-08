@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width,initial-scale=1.0,
+maximum-scale=1.0,user-scalable=no">
+
+<title>Naija Streets - Ilorin Post Office V2</title>
+
+<style>
+*{
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  touch-action:none;
+  font-family:Arial,sans-serif;
+}
+
+canvas{
+  display:block;
+}
+
+#hud{
+  position:fixed;
+  top:12px;
+  left:12px;
+  z-index:20;
+  color:white;
+  text-shadow:0 2px 5px #000;
+  pointer-events:none;
+}
+
+.title{
+  font-size:20px;
+  font-weight:bold;
+}
+
+.info{
+  margin-top:5px;
+  font-size:13px;
+}
+
+#location{
+  position:fixed;
+  bottom:12px;
+  left:50%;
+  transform:translateX(-50%);
+  padding:8px 14px;
+  border-radius:15px;
+  background:rgba(0,0,0,.58);
+  color:white;
+  font-size:12px;
+  z-index:20;
+  white-space:nowrap;
+}
+
+#joystick{
+  position:fixed;
+  left:22px;
+  bottom:25px;
+  width:130px;
+  height:130px;
+  border-radius:50%;
+  background:rgba(255,255,255,.16);
+  border:2px solid rgba(255,255,255,.45);
+  z-index:30;
+}
+
+#stick{
+  position:absolute;
+  left:36px;
+  top:36px;
+  width:58px;
+  height:58px;
+  border-radius:50%;
+  background:rgba(255,255,255,.8);
+  box-shadow:0 3px 12px rgba(0,0,0,.4);
+}
+
+.button{
+  position:fixed;
+  right:20px;
+  width:72px;
+  height:72px;
+  border-radius:50%;
+  border:2px solid rgba(255,255,255,.5);
+  background:rgba(20,20,20,.62);
+  color:white;
+  font-weight:bold;
+  z-index:30;
+}
+
+#jump{bottom:115px}
+#run{bottom:28px}
+</style>
+</head>
+
+<body>
+
+<div id="hud">
+  <div class="title">🇳🇬 NAIJA STREETS</div>
+  <div class="info">📍 Ilorin • Post Office District</div>
+  <div class="info" id="clock">🕐 12:00</div>
+  <div class="info" id="weather">☀️ Clear</div>
+</div>
+
+<div id="location">
+General Post Office • Flyover • Muritala Mohammed Way
+</div>
+
+<div id="joystick">
+  <div id="stick"></div>
+</div>
+
+<button class="button" id="jump">JUMP</button>
+<button class="button" id="run">RUN</button>
+
+
+<script type="module">
+
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+
+/* =====================================================
+   SCENE
+===================================================== */
+
+const scene = new THREE.Scene();
+
+scene.background =
+new THREE.Color(0x79bce8);
+
+
+const camera =
+new THREE.PerspectiveCamera(
+65,
+window.innerWidth/window.innerHeight,
+0.1,
+1000
+);
+
+
+const renderer =
+new THREE.WebGLRenderer({
+antialias:true,
+powerPreference:"high-performance"
+});
+
+renderer.setSize(
+window.innerWidth,
+window.innerHeight
+);
+
+renderer.setPixelRatio(
+Math.min(window.devicePixelRatio,1.5)
+);
+
+renderer.shadowMap.enabled=true;
+
+document.body.appendChild(
+renderer.domElement
+);
+
+
+/* =====================================================
+   LIGHT
+===================================================== */
+
+const ambient =
+new THREE.HemisphereLight(
+0x9ed7ff,
+0x34442d,
+1.3
+);
+
+scene.add(ambient);
+
+
+const sun =
+new THREE.DirectionalLight(
+0xffffff,
+1.8
+);
+
+sun.position.set(
+80,100,40
+);
+
+sun.castShadow=true;
+
+scene.add(sun);
+
+
+/* =====================================================
+   GROUND
+===================================================== */
+
+const ground =
+new THREE.Mesh(
+new THREE.PlaneGeometry(500,500),
+new THREE.MeshStandardMaterial({
+color:0x4d7d43,
+roughness:1
+})
+);
+
+ground.rotation.x=-Math.PI/2;
+ground.receiveShadow=true;
+
+scene.add(ground);
+
+
+/* =====================================================
+   ROAD FUNCTION
+===================================================== */
+
+function road(x,z,w,d,rotation=0){
+
+const r=new THREE.Mesh(
+new THREE.BoxGeometry(w,.08,d),
+new THREE.MeshStandardMaterial({
+color:0x292929,
+roughness:.95
+})
+);
+
+r.position.set(x,.04,z);
+r.rotation.y=rotation;
+r.receiveShadow=true;
+
+scene.add(r);
+}
+
+
+/*
+ MAIN MURITALA MOHAMMED ROAD
+*/
+
+road(0,0,24,380);
+
+
+/*
+ CROSSING ROAD
+*/
+
+road(0,0,170,22);
+
+
+/*
+ STATION ROAD
+*/
+
+road(-75,55,16,150);
+
+
+/*
+ SIDE ROAD
+*/
+
+road(75,-60,16,130);
+
+
+/*
+ CHALLENGE DIRECTION
+*/
+
+road(-105,-70,16,100);
+
+
+/* =====================================================
+   ROAD MARKINGS
+===================================================== */
+
+function roadLine(x,z,rotation=0){
+
+const line=new THREE.Mesh(
+new THREE.BoxGeometry(1,.035,7),
+new THREE.MeshBasicMaterial({
+color:0xffffff
+})
+);
+
+line.position.set(x,.11,z);
+line.rotation.y=rotation;
+
+scene.add(line);
+}
+
+
+for(let z=-180;z<=180;z+=14){
+roadLine(0,z);
+}
+
+
+/* =====================================================
+   ROUNDABOUT
+===================================================== */
+
+const roundabout=
+new THREE.Mesh(
+new THREE.CylinderGeometry(
+19,19,.3,32
+),
+new THREE.MeshStandardMaterial({
+color:0x555555
+})
+);
+
+roundabout.position.y=.17;
+
+scene.add(roundabout);
+
+
+const island=
+new THREE.Mesh(
+new THREE.CylinderGeometry(
+7,7,.5,32
+),
+new THREE.MeshStandardMaterial({
+color:0x347536
+})
+);
+
+island.position.y=.45;
+
+scene.add(island);
+
+
+/* =====================================================
+   FLYOVER
+===================================================== */
+
+const flyover=
+new THREE.Group();
+
+
+const flyDeck=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+18,1.2,130
+),
+new THREE.MeshStandardMaterial({
+color:0x474747
+})
+);
+
+flyDeck.position.y=8;
+
+flyDeck.castShadow=true;
+
+flyover.add(flyDeck);
+
+
+const flyRoad=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+16,.15,128
+),
+new THREE.MeshStandardMaterial({
+color:0x252525
+})
+);
+
+flyRoad.position.y=8.65;
+
+flyover.add(flyRoad);
+
+
+/* SUPPORTS */
+
+for(let z=-52;z<=52;z+=22){
+
+const support=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+2.4,8,2.4
+),
+new THREE.MeshStandardMaterial({
+color:0x777777
+})
+);
+
+support.position.set(
+0,4,z
+);
+
+support.castShadow=true;
+
+flyover.add(support);
+}
+
+
+/* BARRIERS */
+
+for(let z=-62;z<=62;z+=5){
+
+for(const x of[-8.4,8.4]){
+
+const barrier=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+.3,1,4.5
+),
+new THREE.MeshStandardMaterial({
+color:0xd7d7d7
+})
+);
+
+barrier.position.set(
+x,9.1,z
+);
+
+flyover.add(barrier);
+}
+}
+
+scene.add(flyover);
+
+
+/* =====================================================
+   BUILDING FUNCTION
+===================================================== */
+
+function building(
+x,z,w,h,d,color
+){
+
+const group=new THREE.Group();
+
+
+const body=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+w,h,d
+),
+new THREE.MeshStandardMaterial({
+color,
+roughness:.85
+})
+);
+
+body.position.y=h/2;
+
+body.castShadow=true;
+body.receiveShadow=true;
+
+group.add(body);
+
+
+/* roof */
+
+const roof=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+w+.5,.3,d+.5
+),
+new THREE.MeshStandardMaterial({
+color:0x333333
+})
+);
+
+roof.position.y=h+.15;
+
+group.add(roof);
+
+
+/* windows */
+
+for(
+let y=2;
+y<h-1;
+y+=2.7
+){
+
+for(
+let xx=-w/2+1.2;
+xx<w/2-.5;
+xx+=2.5
+){
+
+const win=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+.9,1,.06
+),
+new THREE.MeshStandardMaterial({
+color:0x72c6e9,
+emissive:0x081521
+})
+);
+
+win.position.set(
+xx,y,d/2+.04
+);
+
+group.add(win);
+}
+}
+
+
+group.position.set(
+x,0,z
+);
+
+scene.add(group);
+
+return group;
+}
+
+
+/* =====================================================
+   GENERAL POST OFFICE
+===================================================== */
+
+const postOffice=
+building(
+-30,
+-34,
+27,
+12,
+19,
+0xd6b47b
+);
+
+
+/* POST OFFICE SIGN */
+
+function sign(
+text,
+x,
+y,
+z,
+width=10
+){
+
+const group=new THREE.Group();
+
+
+const board=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+width,2,.25
+),
+new THREE.MeshBasicMaterial({
+color:0xffffff
+})
+);
+
+group.add(board);
+
+
+const canvas=
+document.createElement("canvas");
+
+canvas.width=512;
+canvas.height=100;
+
+const ctx=
+canvas.getContext("2d");
+
+ctx.fillStyle="#ffffff";
+ctx.fillRect(0,0,512,100);
+
+ctx.fillStyle="#222222";
+ctx.font="bold 42px Arial";
+ctx.textAlign="center";
+ctx.textBaseline="middle";
+
+ctx.fillText(
+text,
+256,
+50
+);
+
+
+const texture=
+new THREE.CanvasTexture(canvas);
+
+const lettering=
+new THREE.Mesh(
+new THREE.PlaneGeometry(
+width-.5,1.7
+),
+new THREE.MeshBasicMaterial({
+map:texture
+})
+);
+
+lettering.position.z=.14;
+
+group.add(lettering);
+
+group.position.set(
+x,y,z
+);
+
+scene.add(group);
+}
+
+
+sign(
+"GENERAL POST OFFICE",
+-30,
+8,
+-43.7,
+16
+);
+
+
+/* =====================================================
+   BANKS
+===================================================== */
+
+function bank(
+x,z,name
+){
+
+const b=
+building(
+x,z,
+16,
+9,
+15,
+0xbfc5ca
+);
+
+sign(
+name,
+x,
+5.8,
+z-7.7,
+11
+);
+
+return b;
+}
+
+
+bank(
+-55,
+-35,
+"FCMB"
+);
+
+bank(
+45,
+-35,
+"FIRST BANK"
+);
+
+bank(
+70,
+-35,
+"BANK"
+);
+
+
+/* =====================================================
+   CBN
+===================================================== */
+
+const cbn=
+building(
+-55,
+35,
+27,
+15,
+20,
+0xc8c8c8
+);
+
+sign(
+"CBN KWARA",
+-55,
+10,
+24.7,
+13
+);
+
+
+/* =====================================================
+   KWARA STATE LIBRARY
+===================================================== */
+
+const library=
+building(
+-18,
+38,
+30,
+9,
+18,
+0xd9b47b
+);
+
+sign(
+"KWARA STATE LIBRARY",
+-18,
+6,
+28.7,
+16
+);
+
+
+/* =====================================================
+   SHOPPING COMPLEX
+===================================================== */
+
+const complex=
+building(
+28,
+40,
+45,
+8,
+20,
+0xb47b50
+);
+
+sign(
+"SHOPPING COMPLEX",
+28,
+5.3,
+29.7,
+17
+);
+
+
+/* =====================================================
+   SMALL SHOPS
+===================================================== */
+
+function shop(x,z,color){
+
+const s=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+7,4,5
+),
+new THREE.MeshStandardMaterial({
+color
+})
+);
+
+s.position.set(
+x,2,z
+);
+
+s.castShadow=true;
+
+scene.add(s);
+
+
+const roof=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+7.3,.25,5.3
+),
+new THREE.MeshStandardMaterial({
+color:0x333333
+})
+);
+
+roof.position.set(
+x,4.15,z
+);
+
+scene.add(roof);
+}
+
+
+for(
+let x=-105;
+x<=105;
+x+=12
+){
+
+shop(
+x,
+-57,
+0xa7744d
+);
+
+shop(
+x,
+58,
+0xc08452
+);
+}
+
+
+/* =====================================================
+   FUEL STATIONS
+===================================================== */
+
+function fuelStation(
+x,z,name
+){
+
+const group=
+new THREE.Group();
+
+
+/* canopy */
+
+const canopy=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+24,1.2,13
+),
+new THREE.MeshStandardMaterial({
+color:0xe9e9e9
+})
+);
+
+canopy.position.y=6;
+
+group.add(canopy);
+
+
+/* roof trim */
+
+const trim=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+24.2,.35,13.2
+),
+new THREE.MeshStandardMaterial({
+color:0xd71920
+})
+);
+
+trim.position.y=6.7;
+
+group.add(trim);
+
+
+/* pumps */
+
+for(
+let px=-7;
+px<=7;
+px+=7
+){
+
+const pump=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+1.2,1.8,1
+),
+new THREE.MeshStandardMaterial({
+color:0xffffff
+})
+);
+
+pump.position.set(
+px,2.1,0
+);
+
+group.add(pump);
+}
+
+
+/* office */
+
+const office=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+10,5,7
+),
+new THREE.MeshStandardMaterial({
+color:0xc8c8c8
+})
+);
+
+office.position.set(
+0,2.5,7
+);
+
+group.add(office);
+
+
+/* sign */
+
+const canvas=
+document.createElement("canvas");
+
+canvas.width=512;
+canvas.height=100;
+
+const ctx=
+canvas.getContext("2d");
+
+ctx.fillStyle="#ffffff";
+ctx.fillRect(0,0,512,100);
+
+ctx.fillStyle="#c40000";
+ctx.font="bold 42px Arial";
+ctx.textAlign="center";
+ctx.textBaseline="middle";
+
+ctx.fillText(
+name,
+256,
+50
+);
+
+const tex=
+new THREE.CanvasTexture(canvas);
+
+const board=
+new THREE.Mesh(
+new THREE.PlaneGeometry(
+12,2.4
+),
+new THREE.MeshBasicMaterial({
+map:tex
+})
+);
+
+board.position.set(
+0,9,-.2
+);
+
+group.add(board);
+
+
+group.position.set(
+x,0,z
+);
+
+scene.add(group);
+}
+
+
+/*
+ Real mapped reference:
+ Conoil is close southwest of the
+ General Post Office.
+*/
+
+fuelStation(
+-65,
+-10,
+"CONOIL"
+);
+
+
+/*
+ Second station in the wider
+ Post Office district.
+*/
+
+fuelStation(
+80,
+-8,
+"FUEL STATION"
+);
+
+
+/* =====================================================
+   MOTOR PARK
+===================================================== */
+
+const motorPark=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+42,.15,30
+),
+new THREE.MeshStandardMaterial({
+color:0x6b6b6b
+})
+);
+
+motorPark.position.set(
+-90,
+.1,
+65
+);
+
+scene.add(motorPark);
+
+
+sign(
+"MARABA MOTOR PARK",
+-90,
+4,
+49,
+17
+);
+
+
+/* =====================================================
+   RAILWAY AREA
+===================================================== */
+
+const railway=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+130,.1,7
+),
+new THREE.MeshStandardMaterial({
+color:0x5d5d5d
+})
+);
+
+railway.position.set(
+0,.08,82
+);
+
+scene.add(railway);
+
+
+/* rails */
+
+for(
+const x of[-2,2]
+){
+
+const rail=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+130,.15,.15
+),
+new THREE.MeshStandardMaterial({
+color:0x999999
+})
+);
+
+rail.position.set(
+x,.22,82
+);
+
+scene.add(rail);
+}
+
+
+/* sleepers */
+
+for(
+let x=-60;
+x<=60;
+x+=5
+){
+
+const sleeper=
+new THREE.Mesh(
+new THREE.BoxGeometry(
+1,.18,6
+),
+new THREE.MeshStandardMaterial({
+color:0x4a321f
+})
+);
+
+sleeper.position.set(
+x,.12,82
+);
+
+scene.add(sleeper);
+}
+
+
+/* =====================================================
+   RESTAURANT
+===================================================== */
+
+const restaurant=
+building(
+55,
+60,
+18,
+7,
+15,
+0xb86f42
+);
+
+sign(
+"RESTAURANT",
+55,
+4.8,
+52.2,
+10
+);
+
+
+/* =====================================================
+   TREES
+===================================================== */
+
+function tree(x,z){
+
+const trunk=
+new THREE.Mesh(
+new THREE.CylinderGeometry(
+.35,.5,3,8
+),
+new THREE.MeshStandardMaterial({
+color:0x604020
+})
+);
+
+trunk.position.set(
+x,1.5,z
+);
+
+scene.add(trunk);
+
+
+const leaves=
+new THREE.Mesh(
+new THREE.SphereGeometry(
+2.5,10,10
+),
+new THREE.MeshStandardMaterial({
+color:0x277533
+})
+);
+
+leaves.position.set(
+x,4,z
+);
+
+scene.add(leaves);
+}
+
+
+tree(-15,-5);
+tree(18,8);
+tree(100,55);
+tree(-115,45);
+tree(105,-50);
+
+
+/* =====================================================
+   PLAYER
+===================================================== */
+
+const player=
+new THREE.Group();
+
+
+const body=
+new THREE.Mesh(
+new THREE.CapsuleGeometry(
+.45,1.1,6,12
+),
+new THREE.MeshStandardMaterial({
+color:0x174f9c
+})
+);
+
+body.position.y=1.05;
+body.castShadow=true;
+
+player.add(body);
+
+
+const head=
+new THREE.Mesh(
+new THREE.SphereGeometry(
+.38,16,16
+),
+new THREE.MeshStandardMaterial({
+color:0x8b5a3c
+})
+);
+
+head.position.y=2.05;
+head.castShadow=true;
+
+player.add(head);
+
+
+player.position.set(
+0,
+0,
+125
+);
+
+scene.add(player);
+
+
+/* =====================================================
+   JOYSTICK
+===================================================== */
+
+const joystick=
+document.getElementById(
+"joystick"
+);
+
+const stick=
+document.getElementById(
+"stick"
+);
+
+let joyX=0;
+let joyY=0;
+let active=false;
+let pointerId=null;
+
+const maxDistance=36;
+
+
+function moveStick(x,y){
+
+const r=
+joystick.getBoundingClientRect();
+
+const cx=
+r.left+r.width/2;
+
+const cy=
+r.top+r.height/2;
+
+let dx=x-cx;
+let dy=y-cy;
+
+const distance=
+Math.sqrt(
+dx*dx+dy*dy
+);
+
+if(distance>maxDistance){
+
+dx=
+dx/distance*
+maxDistance;
+
+dy=
+dy/distance*
+maxDistance;
+}
+
+joyX=
+dx/maxDistance;
+
+joyY=
+dy/maxDistance;
+
+stick.style.transform=
+`translate(${dx}px,${dy}px)`;
+}
+
+
+function resetStick(){
+
+active=false;
+pointerId=null;
+
+joyX=0;
+joyY=0;
+
+stick.style.transform=
+"translate(0px,0px)";
+}
+
+
+joystick.addEventListener(
+"pointerdown",
+e=>{
+
+active=true;
+pointerId=e.pointerId;
+
+joystick.setPointerCapture(
+e.pointerId
+);
+
+moveStick(
+e.clientX,
+e.clientY
+);
+}
+);
+
+
+joystick.addEventListener(
+"pointermove",
+e=>{
+
+if(
+!active ||
+e.pointerId!==pointerId
+)return;
+
+moveStick(
+e.clientX,
+e.clientY
+);
+}
+);
+
+
+joystick.addEventListener(
+"pointerup",
+resetStick
+);
+
+joystick.addEventListener(
+"pointercancel",
+resetStick
+);
+
+
+/* =====================================================
+   PLAYER MOVEMENT
+===================================================== */
+
+let running=false;
+let verticalVelocity=0;
+let grounded=true;
+
+const gravity=-18;
+const walkSpeed=5;
+const runSpeed=9;
+const turnSpeed=2.7;
+
+
+document
+.getElementById("run")
+.addEventListener(
+"pointerdown",
+()=>{
+running=true;
+}
+);
+
+document
+.getElementById("run")
+.addEventListener(
+"pointerup",
+()=>{
+running=false;
+}
+);
+
+
+document
+.getElementById("jump")
+.addEventListener(
+"pointerdown",
+()=>{
+
+if(grounded){
+
+verticalVelocity=7.5;
+grounded=false;
+}
+}
+);
+
+
+/* =====================================================
+   CAMERA
+===================================================== */
+
+function updateCamera(delta){
+
+const distance=7;
+const height=4.3;
+
+
+const desired=
+new THREE.Vector3(
+
+player.position.x -
+Math.sin(
+player.rotation.y
+)*distance,
+
+Math.max(
+1.8,
+player.position.y+height
+),
+
+player.position.z -
+Math.cos(
+player.rotation.y
+)*distance
+
+);
+
+
+camera.position.lerp(
+desired,
+Math.min(
+1,
+delta*6
+)
+);
+
+
+/*
+ NEVER allow camera underground
+*/
+
+camera.position.y=
+Math.max(
+1.8,
+camera.position.y
+);
+
+
+camera.lookAt(
+player.position.x,
+player.position.y+1.2,
+player.position.z
+);
+}
+
+
+/* =====================================================
+   MOVEMENT UPDATE
+===================================================== */
+
+function updatePlayer(delta){
+
+const forward=-joyY;
+const turn=joyX;
+
+
+if(
+Math.abs(turn)>.05
+){
+
+player.rotation.y -=
+turn*
+turnSpeed*
+delta;
+}
+
+
+if(
+Math.abs(forward)>.05
+){
+
+const speed=
+running
+?runSpeed
+:walkSpeed;
+
+
+player.position.x +=
+Math.sin(
+player.rotation.y
+)*
+speed*
+forward*
+delta;
+
+
+player.position.z +=
+Math.cos(
+player.rotation.y
+)*
+speed*
+forward*
+delta;
+}
+
+
+/* jump */
+
+verticalVelocity+=
+gravity*delta;
+
+player.position.y+=
+verticalVelocity*delta;
+
+
+if(
+player.position.y<=0
+){
+
+player.position.y=0;
+
+verticalVelocity=0;
+
+grounded=true;
+}
+}
+
+
+/* =====================================================
+   DAY / NIGHT
+===================================================== */
+
+let gameTime=12;
+
+
+function updateTime(delta){
+
+gameTime+=
+delta*.03;
+
+if(gameTime>=24)
+gameTime-=24;
+
+
+const hour=
+Math.floor(gameTime);
+
+const minute=
+Math.floor(
+(gameTime-hour)*60
+);
+
+
+document.getElementById(
+"clock"
+).textContent=
+"🕐 "+
+String(hour).padStart(2,"0")+
+":"+
+String(minute).padStart(2,"0");
+
+
+const angle=
+((gameTime-6)/24)*
+Math.PI*2;
+
+
+const daylight=
+Math.max(
+.12,
+Math.sin(angle)*.5+.5
+);
+
+
+sun.position.set(
+Math.cos(angle)*100,
+Math.max(5,
+Math.sin(angle)*100),
+40
+);
+
+
+sun.intensity=
+daylight*2;
+
+ambient.intensity=
+.3+daylight;
+
+
+if(
+gameTime>=6 &&
+gameTime<18
+){
+
+scene.background=
+new THREE.Color(
+0x79bce8
+);
+
+}else{
+
+scene.background=
+new THREE.Color(
+0x10172c
+);
+}
+}
+
+
+/* =====================================================
+   ANIMATION
+===================================================== */
+
+const clock=
+new THREE.Clock();
+
+
+function animate(){
+
+requestAnimationFrame(
+animate
+);
+
+const delta=
+Math.min(
+clock.getDelta(),
+.05
+);
+
+updatePlayer(delta);
+updateCamera(delta);
+updateTime(delta);
+
+renderer.render(
+scene,
+camera
+);
+}
+
+
+animate();
+
+
+/* =====================================================
+   RESIZE
+===================================================== */
+
+window.addEventListener(
+"resize",
+()=>{
+
+camera.aspect=
+window.innerWidth/
+window.innerHeight;
+
+camera.updateProjectionMatrix();
+
+renderer.setSize(
+window.innerWidth,
+window.innerHeight
+);
+});
+
+</script>
+
+</body>
+</html>
