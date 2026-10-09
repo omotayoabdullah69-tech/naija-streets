@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Naija Streets — Ilorin V6</title>
+
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9ac9e8;font-family:Arial,sans-serif;touch-action:none}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;top:12px;left:12px;z-index:5;color:white;background:#111b;padding:10px 13px;border-radius:10px;font-size:13px;line-height:1.5;pointer-events:none}
+#title{font-weight:bold;font-size:16px;color:#ffd54a}
+#help{position:fixed;top:12px;right:12px;background:#111b;color:white;padding:9px 11px;border-radius:9px;font-size:11px;max-width:145px;line-height:1.5}
+#stickArea{position:fixed;left:18px;bottom:24px;width:140px;height:140px;border-radius:50%;background:#ffffff25;border:2px solid #ffffff70;z-index:10;touch-action:none}
+#stick{position:absolute;width:56px;height:56px;left:40px;top:40px;border-radius:50%;background:#ffffffa8;border:2px solid white;box-shadow:0 2px 8px #0005;pointer-events:none}
+#weather{position:fixed;left:12px;bottom:12px;color:white;font-size:12px;background:#1119;padding:7px 10px;border-radius:8px;z-index:5}
+#notice{position:fixed;bottom:180px;left:50%;transform:translateX(-50%);background:#111c;color:white;padding:9px 12px;border-radius:8px;font-size:12px;white-space:nowrap;z-index:5}
+#loading{position:fixed;inset:0;background:#7cb7dc;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#15232e;z-index:30;text-align:center;padding:24px}
+#loading strong{font-size:26px}
+#loading span{margin-top:10px;font-size:14px}
+#rainToggle{position:fixed;right:12px;bottom:20px;z-index:10;border:0;border-radius:10px;background:#172c39;color:white;padding:12px;font-weight:bold}
+</style>
+</head>
+
+<body>
+<div id="loading">
+<strong>🇳🇬 NAIJA STREETS</strong>
+<span>Building Ilorin, Kwara State...</span>
+</div>
+
+<div id="hud">
+<div id="title">NAIJA STREETS</div>
+<div>📍 <span id="location">General Post Office</span></div>
+<div>💵 ₦<span id="money">25000</span></div>
+<div>⭐ Respect: <span id="respect">10</span></div>
+<div>🚶 Explore Ilorin</div>
+</div>
+
+<div id="help">
+<b>HOW TO PLAY</b><br>
+Move joystick up: Walk forward<br>
+Move down: Walk backward<br>
+Move left/right: Turn<br>
+Explore the city and flyovers.
+</div>
+
+<div id="stickArea"><div id="stick"></div></div>
+<div id="weather">☀️ Daytime in Ilorin</div>
+<div id="notice">Explore the streets of Ilorin!</div>
+<button id="rainToggle">🌧️ Rain: OFF</button>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+/* =====================================================
+   NAIJA STREETS V6
+   Ilorin: Post Office → Challenge → A-Division
+   → Offa Garage → Olunlade
+===================================================== */
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9bc9e8);
+scene.fog = new THREE.Fog(0x9bc9e8, 180, 850);
+
+const camera = new THREE.PerspectiveCamera(
+  65, innerWidth / innerHeight, 0.1, 1200
+);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: "high-performance"
+});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const hemi = new THREE.HemisphereLight(0xd9edff, 0x55503b, 2.0);
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(0xffedcf, 2.6);
+sun.position.set(-80, 150, 100);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left = -160;
+sun.shadow.camera.right = 160;
+sun.shadow.camera.top = 200;
+sun.shadow.camera.bottom = -200;
+scene.add(sun);
+
+/* ---------- MATERIALS ---------- */
+
+function mat(color, roughness=0.9, extra={}) {
+  return new THREE.MeshStandardMaterial({
+    color, roughness, ...extra
+  });
+}
+
+const grassMat = mat(0x777c45);
+const roadMat = mat(0x33383c);
+const concreteMat = mat(0x9b9a91);
+const sidewalkMat = mat(0xb8b3a4);
+const whiteMat = mat(0xf1eee2);
+const yellowMat = mat(0xffc52b);
+const blackMat = mat(0x17191b);
+const redMat = mat(0xc83e2c);
+const blueMat = mat(0x245d96);
+const greenMat = mat(0x297a42);
+
+function box(parent, x,y,z, w,h,d, material, cast=true) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w,h,d), material
+  );
+  mesh.position.set(x,y+h/2,z);
+  mesh.castShadow = cast;
+  mesh.receiveShadow = true;
+  parent.add(mesh);
+  return mesh;
+}
+
+function cylinder(parent,x,y,z,rt,rb,h,material,segments=10) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(rt,rb,h,segments),material
+  );
+  mesh.position.set(x,y+h/2,z);
+  mesh.castShadow=true;
+  parent.add(mesh);
+  return mesh;
+}
+
+/* ---------- GROUND AND LONG CITY CORRIDOR ---------- */
+
+box(scene,0,-1,120,600,1,1200,grassMat,false);
+
+/* Main dual carriageway */
+box(scene,0,0,120,22,0.12,1100,roadMat,false);
+
+/* Road shoulders */
+box(scene,-12.1,0.01,120,2.2,0.15,1100,concreteMat,false);
+box(scene,12.1,0.01,120,2.2,0.15,1100,concreteMat,false);
+
+/* Raised median */
+box(scene,0,0.12,120,0.65,0.3,1100,concreteMat,false);
+
+/* Lane divider markings */
+for(let z=-410;z<670;z+=12){
+  box(scene,-5.3,0.08,z,0.16,0.025,5.5,yellowMat,false);
+  box(scene,5.3,0.08,z,0.16,0.025,5.5,yellowMat,false);
+}
+
+/* Sidewalks and drains */
+for(const side of [-1,1]){
+  box(scene,side*14.1,0.08,120,1.5,0.25,1100,sidewalkMat,false);
+  box(scene,side*15.05,0.01,120,0.25,0.12,1100,blackMat,false);
+}
+
+/* Side streets */
+function sideRoad(x,z,width=38,length=55){
+  box(scene,x,0.025,z,width,0.07,length,roadMat,false);
+  for(let k=-width/2+3;k<width/2;k+=8){
+    box(scene,x+k,0.07,z,0.12,0.02,length*0.75,whiteMat,false);
+  }
+}
+sideRoad(-55,-30,55,45);
+sideRoad(55,90,55,50);
+sideRoad(-55,245,55,55);
+sideRoad(55,390,55,60);
+
+/* ---------- BUILDINGS WITH SIGNBOARDS ---------- */
+
+function signTexture(text,color="#173f32"){
+  const canvas=document.createElement("canvas");
+  canvas.width=512; canvas.height=128;
+  const ctx=canvas.getContext("2d");
+  ctx.fillStyle=color; ctx.fillRect(0,0,512,128);
+  ctx.fillStyle="#ffffff";
+  ctx.font="bold 38px Arial";
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText(text,256,64,480);
+  const tex=new THREE.CanvasTexture(canvas);
+  tex.colorSpace=THREE.SRGBColorSpace;
+  return tex;
+}
+
+function building(x,z,w,h,d,name,options={}){
+  const group=new THREE.Group();
+  group.position.set(x,0,z);
+  scene.add(group);
+
+  const colors=[
+    0xd7c4a4,0xc9b49a,0xe3d7c1,0xc6c4b8,
+    0xd5c8af,0xb9c7c4,0xc8b6a3,0xd9d4c7
+  ];
+  const color=options.color || colors[Math.floor(Math.random()*colors.length)];
+  box(group,0,0,0,w,h,d,mat(color),true);
+
+  /* Roof ledge */
+  box(group,0,h,0,w+0.5,0.22,d+0.5,mat(0x77756b));
+
+  /* Front-facing entrance, windows and sign */
+  const front=-d/2-0.04;
+  box(group,0,Math.min(2,h*0.65),front,Math.min(w*0.72,8),0.6,0.12,
+      mat(options.signColor || 0x25513b));
+
+  const sign=new THREE.Mesh(
+    new THREE.PlaneGeometry(Math.min(w*0.85,10),0.9),
+    new THREE.MeshStandardMaterial({
+      map:signTexture(name,options.textColor || "#173f32"),
+      roughness:0.8
+    })
+  );
+  sign.position.set(0,Math.min(2.35,h*0.65+0.1),front-0.08);
+  group.add(sign);
+
+  /* Windows */
+  const winMat=mat(0x7294a0,0.35,{
+    metalness:0.15
+  });
+  const cols=Math.max(1,Math.floor(w/3.2));
+  const rows=Math.max(1,Math.floor((h-2.8)/2.8));
+
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const wx=-w/2+(c+0.5)*w/cols;
+      const wy=1.8+r*2.6;
+      if(wy<h-0.8){
+        box(group,wx,wy,front-0.03,0.9,1.25,0.06,winMat,false);
+      }
+    }
+  }
+
+  /* Front doorway */
+  box(group,-w*0.28,0.05,front-0.06,1.3,2.15,0.12,mat(0x44362c));
+
+  return group;
+}
+
+/* Major landmarks */
+building(-25,-30,18,10,17,"GENERAL POST OFFICE",{color:0xd7c7a8});
+building(25,-30,13,15,14,"FCMB",{color:0xd7d2c4,signColor:0x5a2876});
+building(-26,-62,15,13,15,"FIRST BANK",{color:0xd8c7ac,signColor:0x0e6742});
+building(26,-65,13,9,15,"MTN OFFICE",{color:0xd7c4a7,signColor:0xffd400,textColor:"#171717"});
+building(-27,10,17,17,17,"CBN",{color:0xd2d1c8,signColor:0x205d49});
+building(27,20,15,12,15,"KWARA LIBRARY",{color:0xd2c3a9});
+
+/* Commercial shops */
+const shopNames=[
+  "PROVISION STORE","SUPERMARKET","BARBER SHOP","PHARMACY",
+  "PHONE ACCESSORIES","FASHION HOUSE","RESTAURANT","BAKERY",
+  "ELECTRONICS","FROZEN FOODS","BETTING SHOP","MOBILE MONEY",
+  "FAMILY STORE","BUILDING MATERIALS","SALON","BOOK SHOP",
+  "TAILORING","COLD DRINKS","EATERY","MINI MART"
+];
+
+for(let z=-100;z<560;z+=15){
+  for(const side of [-1,1]){
+    if(Math.random()<0.18) continue;
+    const x=side*(23+Math.random()*4);
+    const w=6+Math.random()*4;
+    const h=4+Math.random()*5;
+    const d=8+Math.random()*4;
+    const name=shopNames[Math.floor(Math.random()*shopNames.length)];
+    building(x,z,w,h,d,name,{
+      color:[0xd9c6a5,0xe0d7c4,0xcbbba0,0xd1c9b8,0xb9c7c0][Math.floor(Math.random()*5)],
+      signColor:[0x174c37,0x8d2e23,0x174c7a,0x6a3d7a,0xb27a19][Math.floor(Math.random()*5)]
+    });
+  }
+}
+
+/* Larger shopping complexes */
+building(-34,65,16,10,24,"CHARIS SHOPPING",{color:0xe0d2b8});
+building(34,105,16,8,22,"SHOPPING COMPLEX",{color:0xc7c5b8});
+building(-34,180,17,9,24,"MAMTESS MART",{color:0xd8c5a8});
+building(34,215,18,11,24,"KILIMANJARO",{color:0xd8c3a5});
+building(-35,315,16,9,25,"ILORIN STORES",{color:0xc9c0ad});
+
+/* Residential houses farther from the road */
+for(let z=-100;z<600;z+=19){
+  for(const side of [-1,1]){
+    const x=side*(40+Math.random()*20);
+    const w=7+Math.random()*5;
+    const h=3.5+Math.random()*3;
+    const g=new THREE.Group();
+    g.position.set(x,0,z);
+    scene.add(g);
+    box(g,0,0,0,w,h,8,mat([0xd2b9a0,0xc4c3b6,0xd8c9b2,0xbba58e][Math.floor(Math.random()*4)]));
+    /* sloping-style roof approximation */
+    box(g,0,h,0,w+0.8,0.3,8.8,mat(0x8a4a35));
+    box(g,-w*0.25,0,-4.1,1.1,2.1,0.1,mat(0x594333));
+    box(g,w*0.2,1.5,-4.15,1.2,0.9,0.1,mat(0x73929a));
+  }
+}
+
+/* ---------- FUEL STATIONS ---------- */
+
+function fuelStation(x,z,name){
+  building(x,z,18,5,15,name,{color:0xe3e0d4,signColor:0xc62b25});
+  box(scene,x,4.2,z+1,15,0.25,11,mat(0xd7d5ca));
+  for(const dx of [-5,0,5]){
+    box(scene,x+dx,0,z+1,1.1,2.5,1.1,mat(0xf0f0e8));
+    box(scene,x+dx,2.5,z+1,1.4,0.25,1.4,mat(0xc62b25));
+  }
+}
+fuelStation(-37,35,"TOTALENERGIES");
+fuelStation(38,160,"BOVAS");
+fuelStation(-38,280,"CONOIL");
+fuelStation(38,410,"NNPC");
+
+/* ---------- TREES ---------- */
+
+const treeMat=mat(0x4c7139);
+const trunkMat=mat(0x60462e);
+
+function tree(x,z,size=1){
+  cylinder(scene,x,0.05,z,0.23*size,0.32*size,2.7*size,trunkMat,7);
+  const crown=new THREE.Mesh(
+    new THREE.SphereGeometry(1.25*size,8,7),
+    treeMat
+  );
+  crown.position.set(x,3.2*size,z);
+  crown.castShadow=true;
+  scene.add(crown);
+}
+for(let z=-400;z<680;z+=13){
+  tree(-17.2,z,0.75+Math.random()*0.4);
+  tree(17.2,z,0.75+Math.random()*0.4);
+}
+
+/* ---------- STREETLIGHTS ---------- */
+
+function streetlight(x,z){
+  cylinder(scene,x,0,z,0.09,0.12,5,mat(0x464747),8);
+  const arm=box(scene,x,4.75,z-0.8,0.12,0.12,1.6,mat(0x464747));
+  box(scene,x,4.7,z-1.55,0.7,0.15,0.45,mat(0xe2dfb4));
+}
+for(let z=-400;z<680;z+=35){
+  streetlight(-15.8,z);
+  streetlight(15.8,z);
+}
+
+/* ---------- FLYOVERS ---------- */
+
+/*
+  Flyover geometry:
+  Long ramps rise gradually to a raised bridge deck.
+  Main ground road remains open underneath.
+*/
+const flyovers=[
+  {center:-5,length:75,height:6.5},
+  {center:255,length:80,height:6.5}
+];
+
+function rampHeight(z,f){
+  const start=f.center-f.length/2;
+  const end=f.center+f.length/2;
+  const rampLength=23;
+  const deckStart=start+rampLength;
+  const deckEnd=end-rampLength;
+
+  if(z<start || z>end) return 0;
+  if(z<deckStart) return f.height*(z-start)/rampLength;
+  if(z>deckEnd) return f.height*(end-z)/rampLength;
+  return f.height;
+}
+
+function createFlyover(f,index){
+  const start=f.center-f.length/2;
+  const end=f.center+f.length/2;
+  const rampLength=23;
+  const deckStart=start+rampLength;
+  const deckEnd=end-rampLength;
+
+  /* Raised road deck */
+  box(scene,0,f.height, (deckStart+deckEnd)/2,
+      10.5,0.35,deckEnd-deckStart,roadMat);
+
+  /* Side safety barriers */
+  for(const side of [-1,1]){
+    box(scene,side*5.1,f.height+0.3,(deckStart+deckEnd)/2,
+        0.35,0.65,deckEnd-deckStart,concreteMat);
+
+    /* Concrete support piers */
+    for(let z=deckStart+8;z<deckEnd;z+=18){
+      box(scene,side*3.7,0.05,z,0.8,f.height,0.9,concreteMat);
+    }
+
+    /* Ramp segments */
+    const n=16;
+    for(let i=0;i<n;i++){
+      const t=(i+0.5)/n;
+      const z1=start+t*rampLength;
+      const z2=end-t*rampLength;
+      const h1=f.height*t;
+      const h2=f.height*t;
+
+      const a=box(scene,side*0, h1, z1,10.5,0.28,rampLength/n+0.1,roadMat);
+      a.rotation.x=-Math.atan(f.height/rampLength);
+      a.position.y=h1+0.1;
+
+      const b=box(scene,0,h2,z2,10.5,0.28,rampLength/n+0.1,roadMat);
+      b.rotation.x=Math.atan(f.height/rampLength);
+      b.position.y=h2+0.1;
+    }
+  }
+
+  /* Painted deck markings */
+  for(let z=deckStart;z<deckEnd;z+=7){
+    box(scene,0,f.height+0.2,z,0.13,0.025,3.5,whiteMat,false);
+  }
+
+  /* Flyover name signs */
+  const signGroup=new THREE.Group();
+  signGroup.position.set(0, f.height+3, f.center);
+  scene.add(signGroup);
+  box(signGroup,0,0,0,5,1.2,0.2,mat(0x17583b));
+  const label=index===0?"POST OFFICE FLYOVER":"A-DIVISION FLYOVER";
+  const labelMesh=new THREE.Mesh(
+    new THREE.PlaneGeometry(4.7,0.8),
+    new THREE.MeshBasicMaterial({map:signTexture(label,"#17583b")})
+  );
+  labelMesh.position.set(0,0.05,0.12);
+  signGroup.add(labelMesh);
+}
+
+flyovers.forEach((f,i)=>createFlyover(f,i));
+
+/* ---------- A-DIVISION POLICE STATION ---------- */
+
+building(-32,255,18,8,18,"A-DIVISION POLICE",{color:0xd6c8ad,signColor:0x244e31});
+building(32,265,17,10,18,"POLICE COMMAND",{color:0xd5c8b0,signColor:0x244e31});
+
+/* Police compound wall */
+for(const side of [-1,1]){
+  box(scene,side*27,0.05,255,0.45,1.8,65,concreteMat);
+}
+box(scene,0,0.05,222,54,1.8,0.45,concreteMat);
+box(scene,0,0.05,288,54,1.8,0.45,concreteMat);
+
+/* Motor parks */
+building(-34,115,16,5,22,"MARABA MOTOR PARK",{color:0xc6b89d});
+building(34,355,16,5,22,"OFFA GARAGE",{color:0xc6b89d});
+
+/* ---------- VEHICLES ---------- */
+
+const vehicles=[];
+const vehicleColors=[
+  0xf1f0e8,0x222b32,0xc93b2f,0x1c5eaa,0xe4b72d,
+  0x777777,0x31794a,0xb8b6b0,0x8c3f85,0x2c3035
+];
+
+function makeVehicle(x,z,color,bus=false){
+  const g=new THREE.Group();
+  g.position.set(x,0.15,z);
+  scene.add(g);
+
+  const length=bus?8:4.2;
+  const width=bus?2.4:1.85;
+  const height=bus?3:1.5;
+
+  box(g,0,0,0,width,height,length,mat(color,0.55));
+  box(g,0,height*0.65,-length*0.08,width*0.86,height*0.38,length*0.53,
+      mat(bus?0xd8dfe0:0x6e8997,0.25,{metalness:0.15}));
+
+  /* Windshield */
+  box(g,0,height*0.58,-length*0.48,width*0.78,height*0.3,0.08,
+      mat(0x526e7c,0.25));
+
+  /* Wheels */
+  for(const wx of [-width*0.52,width*0.52]){
+    for(const wz of [-length*0.31,length*0.31]){
+      const wheel=new THREE.Mesh(
+        new THREE.CylinderGeometry(0.38,0.38,0.2,10),
+        blackMat
+      );
+      wheel.rotation.z=Math.PI/2;
+      wheel.position.set(wx,0.15,wz);
+      g.add(wheel);
+    }
+  }
+
+  /* Headlights */
+  const headlights=[];
+  for(const hx of [-width*0.32,width*0.32]){
+    const lamp=new THREE.Mesh(
+      new THREE.BoxGeometry(0.42,0.24,0.12),
+      new THREE.MeshStandardMaterial({
+        color:0xfff2c1,
+        emissive:0xffe5a1,
+        emissiveIntensity:0.5
+      })
+    );
+    lamp.position.set(hx,height*0.42,-length/2-0.06);
+    g.add(lamp);
+    headlights.push(lamp);
+  }
+
+  const light=new THREE.PointLight(0xffe6a4,0,12);
+  light.position.set(0,height*0.4,-length/2);
+  g.add(light);
+
+  vehicles.push({
+    group:g,
+    speed:2+Math.random()*2.3,
+    direction:Math.random()<0.5?-1:1,
+    headlights,
+    light,
+    stopped:false,
+    bus,
+    baseX:x,
+    baseZ:z,
+    length
+  });
+}
+
+for(let i=0;i<34;i++){
+  const lane=[-8,-2.7,2.7,8][i%4];
+  const z=-390+i*29;
+  makeVehicle(lane,z,vehicleColors[i%vehicleColors.length],i%9===0);
+}
+
+/* ---------- PEDESTRIANS ---------- */
+
+const people=[];
+const skinTones=[0x8c5938,0x5f3927,0xb87c50,0x70442c,0x9a6748];
+const shirtColors=[0x2464a2,0xc43d30,0xd6a72c,0x35814c,0xe3ddd1,0x713f81];
+
+function person(x,z){
+  const g=new THREE.Group();
+  g.position.set(x,0,z);
+  scene.add(g);
+
+  const skin=mat(skinTones[Math.floor(Math.random()*skinTones.length)]);
+  const shirt=mat(shirtColors[Math.floor(Math.random()*shirtColors.length)]);
+  const legMat=mat(0x292e33);
+
+  cylinder(g,0,0,0,0.23,0.28,0.85,shirt,8);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,8,7),skin);
+  head.position.set(0,1.15,0);
+  g.add(head);
+
+  box(g,-0.12,0.05,0,0.13,0.65,0.14,legMat);
+  box(g,0.12,0.05,0,0.13,0.65,0.14,legMat);
+
+  box(g,-0.31,0.32,0,0.12,0.65,0.12,shirt);
+  box(g,0.31,0.32,0,0.12,0.65,0.12,shirt);
+
+  people.push({
+    group:g,
+    originX:x,
+    originZ:z,
+    phase:Math.random()*Math.PI*2,
+    speed:0.4+Math.random()*0.5
+  });
+}
+
+for(let i=0;i<110;i++){
+  const side=Math.random()<0.5?-1:1;
+  person(side*(16+Math.random()*5),-390+Math.random()*1020);
+}
+
+/* ---------- PLAYER ---------- */
+
+const player=new THREE.Group();
+scene.add(player);
+player.position.set(-9,0.1,-45);
+
+const body= new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.42,0.85,4,8),
+  mat(0x2564a4)
+);
+body.position.y=1;
+body.castShadow=true;
+player.add(body);
+
+const head=new THREE.Mesh(
+  new THREE.SphereGeometry(0.27,12,10),
+  mat(0x8c5938)
+);
+head.position.y=1.78;
+head.castShadow=true;
+player.add(head);
+
+/* Shoes */
+box(player,-0.2,0.03,-0.08,0.22,0.12,0.4,blackMat);
+box(player,0.2,0.03,-0.08,0.22,0.12,0.4,blackMat);
+
+/* ---------- JOYSTICK ---------- */
+
+const stickArea=document.getElementById("stickArea");
+const stick=document.getElementById("stick");
+let joyX=0,joyY=0;
+let activePointer=null;
+
+function resetStick(){
+  joyX=0;joyY=0;
+  stick.style.left="40px";
+  stick.style.top="40px";
+}
+
+stickArea.addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  activePointer=e.pointerId;
+  stickArea.setPointerCapture(e.pointerId);
+  updateStick(e);
+});
+
+stickArea.addEventListener("pointermove",e=>{
+  if(e.pointerId!==activePointer)return;
+  e.preventDefault();
+  updateStick(e);
+});
+
+function updateStick(e){
+  const rect=stickArea.getBoundingClientRect();
+  const cx=rect.left+rect.width/2;
+  const cy=rect.top+rect.height/2;
+  let dx=e.clientX-cx;
+  let dy=e.clientY-cy;
+  const max=43;
+  const len=Math.hypot(dx,dy);
+  if(len>max){dx=dx/len*max;dy=dy/len*max;}
+  joyX=dx/max;
+  joyY=dy/max;
+  stick.style.left=(40+dx)+"px";
+  stick.style.top=(40+dy)+"px";
+}
+
+function endStick(e){
+  if(e.pointerId!==activePointer)return;
+  activePointer=null;
+  resetStick();
+}
+stickArea.addEventListener("pointerup",endStick);
+stickArea.addEventListener("pointercancel",endStick);
+stickArea.addEventListener("lostpointercapture",()=>{activePointer=null;resetStick();});
+
+/* ---------- FLYOVER PLAYER HEIGHT ---------- */
+
+function flyoverHeight(z){
+  let h=0;
+  for(const f of flyovers){
+    h=Math.max(h,rampHeight(z,f));
+  }
+  return h;
+}
+
+function roadHeight(x,z){
+  /* Only the central flyover deck raises the player */
+  if(Math.abs(x)<4.8){
+    return flyoverHeight(z);
+  }
+  return 0;
+}
+
+/* ---------- TRAFFIC STOP / HEADLIGHT BEHAVIOUR ---------- */
+
+function vehicleIsFacingPlayer(v){
+  const car=v.group;
+  const dx=player.position.x-car.position.x;
+  const dz=player.position.z-car.position.z;
+  const dist=Math.hypot(dx,dz);
+  if(dist>11)return false;
+
+  /* Cars face their local negative Z direction when moving forward */
+  const forward=new THREE.Vector3(0,0,-1)
+    .applyQuaternion(car.quaternion);
+  const toward=new THREE.Vector3(dx,0,dz).normalize();
+
+  return forward.dot(toward)>0.65;
+}
+
+/* ---------- CLOUDS ---------- */
+
+const clouds=[];
+const cloudMat=new THREE.MeshStandardMaterial({
+  color:0xffffff,
+  roughness:1
+});
+
+function cloud(x,y,z,size=1){
+  const g=new THREE.Group();
+  g.position.set(x,y,z);
+  scene.add(g);
+
+  const parts=[
+    [-1,0,0,1.5],
+    [0.2,0.4,0,1.8],
+    [1.3,0,0,1.4],
+    [0.3,-0.15,0.6,1.4]
+  ];
+
+  for(const p of parts){
+    const m=new THREE.Mesh(
+      new THREE.SphereGeometry(p[3]*size,8,7),
+      cloudMat
+    );
+    m.position.set(p[0]*size,p[1]*size,p[2]*size);
+    g.add(m);
+  }
+  clouds.push({group:g,speed:0.25+Math.random()*0.25});
+}
+for(let i=0;i<24;i++){
+  cloud(-200+Math.random()*400,65+Math.random()*45,
+        -450+Math.random()*1000,0.7+Math.random()*1.5);
+}
+
+/* ---------- RAIN ---------- */
+
+let raining=false;
+const rainCount=700;
+const rainPositions=new Float32Array(rainCount*3);
+for(let i=0;i<rainCount;i++){
+  rainPositions[i*3]=(Math.random()-0.5)*120;
+  rainPositions[i*3+1]=Math.random()*80;
+  rainPositions[i*3+2]=(Math.random()-0.5)*160;
+}
+const rainGeometry=new THREE.BufferGeometry();
+rainGeometry.setAttribute(
+  "position",new THREE.BufferAttribute(rainPositions,3)
+);
+const rainMaterial=new THREE.PointsMaterial({
+  color:0xd7e8f4,
+  size:0.14,
+  transparent:true,
+  opacity:0.7
+});
+const rain=new THREE.Points(rainGeometry,rainMaterial);
+rain.visible=false;
+scene.add(rain);
+
+document.getElementById("rainToggle").addEventListener("click",()=>{
+  raining=!raining;
+  rain.visible=raining;
+  document.getElementById("rainToggle").textContent=
+    raining?"🌧️ Rain: ON":"🌧️ Rain: OFF";
+  document.getElementById("weather").textContent=
+    raining?"🌧️ Rainy weather in Ilorin":"☀️ Daytime in Ilorin";
+});
+
+/* ---------- LOCATION HUD ---------- */
+
+function getLocation(z){
+  if(z < 25) return "General Post Office";
+  if(z < 95) return "Post Office / Challenge";
+  if(z < 200) return "Challenge Commercial Area";
+  if(z < 290) return "A-Division Police Station";
+  if(z < 365) return "A-Division / Offa Garage";
+  if(z < 470) return "Offa Garage Corridor";
+  return "Olunlade";
+}
+
+/* ---------- GAME LOOP ---------- */
+
+const clock=new THREE.Clock();
+let elapsed=0;
+let noticeCooldown=0;
+
+camera.position.set(-9,7,-55);
+camera.lookAt(player.position);
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  const dt=Math.min(clock.getDelta(),0.045);
+  elapsed+=dt;
+
+  /* Left joystick: horizontal turns; vertical moves */
+  const turn=-joyX*2.0*dt;
+  player.rotation.y+=turn;
+
+  const forward=-joyY;
+  const walking=Math.abs(forward)>0.04;
+
+  if(walking){
+    const speed=forward>0?8:5;
+    const dx=Math.sin(player.rotation.y)*forward*speed*dt;
+    const dz=-Math.cos(player.rotation.y)*forward*speed*dt;
+    player.position.x+=dx;
+    player.position.z+=dz;
+  }
+
+  /* Keep player in the walkable city area */
+  player.position.x=THREE.MathUtils.clamp(player.position.x,-70,70);
+  player.position.z=THREE.MathUtils.clamp(player.position.z,-490,640);
+
+  /* Smooth flyover height */
+  const groundY=roadHeight(player.position.x,player.position.z);
+  player.position.y=THREE.MathUtils.lerp(player.position.y,groundY+0.1,0.25);
+
+  /* Slight walking bob */
+  body.position.y=1+(walking?Math.abs(Math.sin(elapsed*10))*0.05:0);
+
+  /* Camera follows from behind */
+  const behind=new THREE.Vector3(
+    Math.sin(player.rotation.y)*10,
+    6.3,
+    Math.cos(player.rotation.y)*10
+  );
+  const targetCamera=player.position.clone().add(behind);
+  targetCamera.y=Math.max(targetCamera.y,player.position.y+4.2);
+
+  camera.position.lerp(targetCamera,0.09);
+  const lookTarget=player.position.clone();
+  lookTarget.y+=1.6;
+  camera.lookAt(lookTarget);
+
+  /* Clouds drift across the sky */
+  for(const c of clouds){
+    c.group.position.x+=c.speed*dt;
+    if(c.group.position.x>240)c.group.position.x=-240;
+  }
+
+  /* Rain falls around player */
+  if(raining){
+    rain.position.set(player.position.x,0,player.position.z);
+    const pos=rain.geometry.attributes.position;
+    for(let i=0;i<rainCount;i++){
+      pos.array[i*3+1]-=25*dt;
+      if(pos.array[i*3+1]<0){
+        pos.array[i*3+1]=65+Math.random()*20;
+      }
+    }
+    pos.needsUpdate=true;
+  }
+
+  /* Traffic moves along the road and stops for the player */
+  for(const v of vehicles){
+    const g=v.group;
+    const dist=g.position.distanceTo(player.position);
+    v.stopped=vehicleIsFacingPlayer(v);
+
+    if(v.stopped){
+      v.headlights.forEach(l=>{
+        l.material.emissiveIntensity=1.9;
+      });
+      v.light.intensity=1.6;
+    }else{
+      v.headlights.forEach(l=>{
+        l.material.emissiveIntensity=0.45;
+      });
+      v.light.intensity=0;
+    }
+
+    if(!v.stopped){
+      g.position.z+=v.direction*v.speed*dt;
+
+      if(g.position.z>650)g.position.z=-480;
+      if(g.position.z<-480)g.position.z=650;
+    }
+  }
+
+  /* Pedestrians walk along the sidewalks */
+  for(const p of people){
+    p.phase+=dt*p.speed;
+    p.group.position.z=p.originZ+Math.sin(p.phase)*1.8;
+    p.group.rotation.y=Math.sin(p.phase)*0.25;
+  }
+
+  /* Keep the location display updated */
+  document.getElementById("location").textContent=getLocation(player.position.z);
+
+  /* Friendly prompt */
+  noticeCooldown-=dt;
+  if(noticeCooldown<=0){
+    const nearCar=vehicles.some(v=>
+      v.group.position.distanceTo(player.position)<7
+    );
+    if(nearCar){
+      document.getElementById("notice").textContent=
+        "🚗 A vehicle is near you!";
+      noticeCooldown=2;
+    }else if(player.position.z>230&&player.position.z<290){
+      document.getElementById("notice").textContent=
+        "🚔 You are near A-Division Police Station";
+      noticeCooldown=2;
+    }else{
+      document.getElementById("notice").textContent=
+        "Explore the streets of Ilorin!";
+    }
+  }
+
+  renderer.render(scene,camera);
+}
+
+/* ---------- RESIZE ---------- */
+
+addEventListener("resize",()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+/* ---------- START ---------- */
+
+camera.position.set(-9,7,-55);
+document.getElementById("loading").style.display="none";
+animate();
+
+</script>
+</body>
+</html>
