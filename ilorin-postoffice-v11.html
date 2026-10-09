@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Naija Streets V11 — Ilorin</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9dc8e7;font-family:Arial,sans-serif;touch-action:none}
+canvas{display:block}
+#hud{position:fixed;top:10px;left:10px;right:10px;z-index:3;color:white;pointer-events:none;text-shadow:1px 2px 3px #000}
+#brand{font-size:19px;font-weight:900;letter-spacing:1px}
+#location{font-size:12px;margin-top:5px}
+#help{font-size:11px;margin-top:5px;max-width:270px;line-height:1.4}
+#buttons{position:fixed;right:12px;top:12px;z-index:5;display:flex;flex-direction:column;gap:8px}
+button{border:1px solid #ffffff88;background:#18252de8;color:#fff;padding:11px 13px;border-radius:12px;font-weight:bold;font-size:12px}
+#stickZone{position:fixed;left:15px;bottom:25px;width:150px;height:150px;border-radius:50%;background:#ffffff20;border:2px solid #ffffff75;z-index:5;touch-action:none}
+#stick{position:absolute;left:43px;top:43px;width:60px;height:60px;border-radius:50%;background:#f4f4f4c9;border:2px solid white;box-shadow:0 3px 10px #0005}
+#stickLabel{position:absolute;bottom:-20px;width:100%;text-align:center;color:white;font-size:10px;text-shadow:1px 1px 3px black}
+#actions{position:fixed;right:14px;bottom:28px;z-index:5;display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+.action{min-width:105px;background:#1d252be8}
+#status{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);color:white;background:#111a;padding:6px 10px;border-radius:8px;font-size:10px;white-space:nowrap;z-index:4}
+#message{position:fixed;top:105px;left:50%;transform:translateX(-50%);color:white;background:#14252aeb;border-radius:12px;padding:10px 14px;z-index:6;display:none;text-align:center;font-size:12px}
+#loading{position:fixed;inset:0;background:#18252b;color:white;display:flex;align-items:center;justify-content:center;z-index:20;text-align:center;padding:30px}
+@media(orientation:portrait){#stickZone{width:140px;height:140px}#stick{left:38px;top:38px}}
+</style>
+</head>
+<body>
+<div id="loading"><div><h2>NAIJA STREETS V11</h2><p>Loading Ilorin, Kwara State...</p></div></div>
+
+<div id="hud">
+  <div id="brand">🇳🇬 NAIJA STREETS</div>
+  <div id="location">ILORIN, KWARA STATE</div>
+  <div id="help">Push UP to move forward. Push LEFT or RIGHT to turn your character. The camera follows behind you.</div>
+</div>
+
+<div id="buttons">
+  <button id="run">🏃 RUN: OFF</button>
+  <button id="enter">🚗 ENTER CAR</button>
+  <button id="reset">↻ RESPAWN</button>
+</div>
+
+<div id="stickZone">
+  <div id="stick"></div>
+  <div id="stickLabel">MOVE / TURN</div>
+</div>
+
+<div id="actions">
+  <button class="action" id="interact">🚪 ENTER BUILDING</button>
+  <button class="action" id="exit">🚶 EXIT CAR</button>
+</div>
+
+<div id="status">ON FOOT · ILORIN</div>
+<div id="message"></div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+
+const $ = id => document.getElementById(id);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9dc8e7);
+scene.fog = new THREE.Fog(0x9dc8e7, 180, 850);
+
+const camera = new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,1600);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xe4f4ff,0x726044,2.0));
+const sun = new THREE.DirectionalLight(0xffedce,2.4);
+sun.position.set(-100,180,80);
+sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+scene.add(sun);
+
+const mat = (color,roughness=0.9) =>
+  new THREE.MeshStandardMaterial({color,roughness});
+
+const M={
+  grass:mat(0x729650),road:mat(0x34393c),roadEdge:mat(0xb6b4a9),
+  line:mat(0xf4e4a7),concrete:mat(0xaaa9a2),
+  white:mat(0xf2eee4),cream:mat(0xd5bd91),
+  yellow:mat(0xd8a442),red:mat(0xb94d38),
+  blue:mat(0x7198aa),green:mat(0x477650),
+  glass:new THREE.MeshStandardMaterial({color:0x83c7d9,metalness:.15,roughness:.3}),
+  dark:mat(0x252b2e),skin:mat(0x925c3d),
+  shirt:mat(0x2773ad),pants:mat(0x343c48),
+  tyre:mat(0x191b1d),metal:mat(0x9b9e9e,.35),
+  tree:mat(0x386d37),trunk:mat(0x70503a),
+  airport:mat(0xd8dedc),roof:mat(0x9aabae)
+};
+
+function box(parent,w,h,d,x,y,z,material,cast=true){
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+  mesh.position.set(x,y+h/2,z);
+  mesh.castShadow=cast;
+  mesh.receiveShadow=true;
+  parent.add(mesh);
+  return mesh;
+}
+
+function cylinder(parent,r1,r2,h,x,y,z,material,segments=8){
+  const mesh=new THREE.Mesh(
+    new THREE.CylinderGeometry(r1,r2,h,segments),material
+  );
+  mesh.position.set(x,y+h/2,z);
+  mesh.castShadow=true;
+  parent.add(mesh);
+  return mesh;
+}
+
+const ground=new THREE.Mesh(
+  new THREE.PlaneGeometry(1800,1800),
+  M.grass
+);
+ground.rotation.x=-Math.PI/2;
+ground.position.y=-.08;
+ground.receiveShadow=true;
+scene.add(ground);
+
+const solid=[];
+const enterables=[];
+
+function addSolid(x,z,w,d){
+  solid.push({x,z,w,d});
+}
+
+function road(x,z,w,d){
+  box(scene,w,.12,d,x,.0,z,M.road,false);
+  box(scene,w+.6,.10,d+.6,x,-.02,z,M.roadEdge,false);
+  box(scene,w,.12,d,x,.0,z,M.road,false);
+}
+
+function roadLine(x,z,w,d){
+  box(scene,w,.025,d,x,.075,z,M.line,false);
+}
+
+function mainRoad(a,b,width=17){
+  const dx=b.x-a.x,dz=b.z-a.z;
+  const len=Math.hypot(dx,dz);
+  const midX=(a.x+b.x)/2,midZ=(a.z+b.z)/2;
+  const angle=Math.atan2(dx,dz);
+
+  const r=box(scene,width,.12,len,midX,.02,midZ,M.road,false);
+  r.rotation.y=angle;
+
+  for(let t=-len/2+3;t<len/2-1;t+=7){
+    const px=midX+Math.sin(angle)*t;
+    const pz=midZ+Math.cos(angle)*t;
+    const mark=box(scene,.16,.025,3,px,.09,pz,M.line,false);
+    mark.rotation.y=angle;
+  }
+}
+
+function makeTree(x,z,scale=1){
+  const g=new THREE.Group();
+  g.position.set(x,0,z);
+  scene.add(g);
+  cylinder(g,.17*scale,.25*scale,2.2*scale,0,0,0,M.trunk);
+  const crown=new THREE.Mesh(
+    new THREE.IcosahedronGeometry(1.25*scale,1),
+    M.tree
+  );
+  crown.position.y=2.6*scale;
+  crown.castShadow=true;
+  g.add(crown);
+}
+
+function makeStreetlight(x,z){
+  cylinder(scene,.07,.10,5.2,x,0,z,M.dark);
+  const arm=box(scene,.09,.09,1.5,x,5.05,z-.65,M.dark);
+  const lamp=new THREE.Mesh(
+    new THREE.BoxGeometry(.55,.15,.35),
+    mat(0xffedbd,.35)
+  );
+  lamp.position.set(x,5.0,z-1.2);
+  scene.add(lamp);
+}
+
+function makeShop(x,z,w,d,height,name,color=0xd8c7a5,door=true){
+  const g=new THREE.Group();
+  g.position.set(x,0,z);
+  scene.add(g);
+
+  const bodyMat=mat(color);
+  box(g,w,height,d,0,0,0,bodyMat);
+  box(g,w+.35,.32,d+.35,0,height,0,M.roof);
+  box(g,w+.3,.22,.4,0,height*.58,-d/2-.17,mat(0x6a4536));
+
+  // Front facade faces the local -Z direction.
+  const front=-d/2-.025;
+  const windowMat=mat(0x42636b,.4);
+
+  if(door){
+    // Leave a real doorway-sized gap in the front wall.
+    const dw=1.15,dh=2.25;
+    box(g,(w-dw)/2,dh,.12,-(w+dw)/4,0,front,bodyMat);
+    box(g,(w-dw)/2,dh,.12,(w+dw)/4,0,front,bodyMat);
+    box(g,w,.35,.12,0,dh,front,bodyMat);
+    box(g,.12,1.45,.12,-dw/2,.0,front-.02,M.dark);
+    box(g,.12,1.45,.12,dw/2,.0,front-.02,M.dark);
+    enterables.push({x,z,w:w*.7,d:d*.7,doorX:x,doorZ:z-d/2-1.0,name});
+  }else{
+    box(g,w*.24,1.8,.13,0,.3,front,windowMat);
+  }
+
+  const sign=box(g,w*.85,.55,.16,0,height*.74,front-.08,
+    mat(0xf4dfaa));
+  sign.position.y=height*.74+.275;
+  const canvas=document.createElement("canvas");
+  canvas.width=512;canvas.height=128;
+  const ctx=canvas.getContext("2d");
+  ctx.fillStyle="#f4dfaa";ctx.fillRect(0,0,512,128);
+  ctx.fillStyle="#26332e";ctx.font="bold 48px Arial";
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText(name.slice(0,23),256,64);
+  const tex=new THREE.CanvasTexture(canvas);
+  tex.colorSpace=THREE.SRGBColorSpace;
+  sign.material=new THREE.MeshBasicMaterial({map:tex});
+
+  // Building collision boundary.
+  addSolid(x,z,w*.88,d*.88);
+  return g;
+}
+
+function makeHouse(x,z,color=0xe2cda5){
+  const w=7+Math.random()*4,d=7+Math.random()*4,h=3.4+Math.random()*1.5;
+  makeShop(x,z,w,d,h,"",color,false);
+  box(scene,w*.48,.65,.1,x,h*.42,z-d/2-.08,M.glass,false);
+}
+
+function makePetrol(x,z,name,color){
+  const g=new THREE.Group();
+  g.position.set(x,0,z);
+  scene.add(g);
+  box(g,17,.45,11,0,5.2,0,mat(color));
+  for(let i=-1;i<=1;i++){
+    box(g,4,.16,7,i*5,4.9,0,M.white);
+    box(g,1.6,2.3,1.4,i*5,1.2,0,mat(0xe9e9e9));
+    box(g,.8,.4,.2,i*5,2.7,-.76,mat(color));
+  }
+  box(g,8,3,7,0,0,9,mat(0xe4d6b7));
+  box(g,8,.4,7,0,3,9,mat(color));
+  const cv=document.createElement("canvas");
+  cv.width=512;cv.height=128;
+  const ctx=cv.getContext("2d");
+  ctx.fillStyle=color;ctx.fillRect(0,0,512,128);
+  ctx.fillStyle="white";ctx.font="bold 56px Arial";
+  ctx.textAlign="center";ctx.fillText(name,256,82);
+  const texture=new THREE.CanvasTexture(cv);
+  const sign=new THREE.Mesh(
+    new THREE.PlaneGeometry(9,2.2),
+    new THREE.MeshBasicMaterial({map:texture})
+  );
+  sign.position.set(0,7.2,0);
+  g.add(sign);
+}
+
+function makeCar(x,z,color=0x9b2929){
+  const g=new THREE.Group();
+  g.position.set(x,.05,z);
+  scene.add(g);
+  const body=mat(color,.4);
+  box(g,2.1,.65,4.2,0,.65,0,body);
+  box(g,1.65,.65,2.0,0,1.25,-.2,M.glass);
+  box(g,1.9,.25,1.0,0,.95,1.4,body);
+  box(g,1.9,.2,.7,0,.95,-1.65,body);
+
+  for(const xw of [-1.05,1.05]){
+    for(const zw of [-1.25,1.25]){
+      const wheel=new THREE.Mesh(
+        new THREE.CylinderGeometry(.38,.38,.22,12),
+        M.tyre
+      );
+      wheel.rotation.z=Math.PI/2;
+      wheel.position.set(xw,.4,zw);
+      g.add(wheel);
+    }
+  }
+  for(const xx of [-.65,.65]){
+    const lamp=box(g,.35,.22,.08,xx,.78,2.13,mat(0xffefb0));
+    lamp.position.y=.78;
+  }
+  return g;
+}
+
+function makePerson(){
+  const g=new THREE.Group();
+  const body=box(g,.65,.85,.38,0,1.05,0,M.shirt);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.24,12,10),M.skin);
+  head.position.y=1.75;
+  head.castShadow=true;
+  g.add(head);
+  box(g,.22,.65,.23,-.19,.3,0,M.pants);
+  box(g,.22,.65,.23,.19,.3,0,M.pants);
+  box(g,.24,.16,.4,-.19,.0,-.05,M.dark);
+  box(g,.24,.16,.4,.19,.0,-.05,M.dark);
+  cylinder(g,.07,.09,.35,0,1.92,0,M.dark,8);
+  return g;
+}
+
+// Main Ilorin road network: route is deliberately curving, not a straight line.
+mainRoad({x:0,z:0},{x:0,z:-100},18);
+mainRoad({x:0,z:-100},{x:-25,z:-160},18);
+mainRoad({x:-25,z:-160},{x:-55,z:-205},18);
+mainRoad({x:-55,z:-205},{x:-15,z:-255},19);
+mainRoad({x:-15,z:-255},{x:25,z:-310},20);
+mainRoad({x:25,z:-310},{x:65,z:-370},19);
+mainRoad({x:65,z:-370},{x:110,z:-435},19);
+mainRoad({x:110,z:-435},{x:160,z:-495},19);
+mainRoad({x:160,z:-495},{x:220,z:-550},21);
+mainRoad({x:220,z:-550},{x:290,z:-595},21);
+mainRoad({x:290,z:-595},{x:370,z:-625},21);
+mainRoad({x:370,z:-625},{x:465,z:-640},23);
+
+// Side roads and junctions.
+mainRoad({x:-55,z:-205},{x:-145,z:-205},12);
+mainRoad({x:-15,z:-255},{x:100,z:-255},12);
+mainRoad({x:110,z:-435},{x:205,z:-415},12);
+mainRoad({x:220,z:-550},{x:305,z:-500},12);
+mainRoad({x:370,z:-625},{x:420,z:-710},14);
+
+// Roadside sidewalks.
+for(let z=-30;z>-610;z-=25){
+  const x=z>-190?9:z>-300?34:z>-430?85:z>-520?135:230;
+  box(scene,1.3,.16,17,x,.02,z,M.concrete,false);
+  box(scene,1.3,.16,17,x-19,.02,z,M.concrete,false);
+}
+
+// General Post Office area.
+makeShop(-15,8,16,10,8,"GENERAL POST OFFICE",0xd7c7a6,false);
+box(scene,18,.25,12,-15,8.1,8,M.red);
+for(let i=0;i<5;i++)makeTree(-34+i*8,15,1.0);
+
+// Challenge.
+makeShop(-23,-115,13,10,5,"CHALLENGE",0xe0c69b,false);
+makeShop(22,-122,10,9,4.5,"MARKET",0xb7c9a1,false);
+for(let i=0;i<7;i++)makeTree(-45+i*12,-140,1.0);
+
+// A-Division.
+makeShop(-85,-205,17,12,5.5,"A-DIVISION",0xe5e0d4,false);
+box(scene,13,.2,2,-85,.2,-212,M.dark);
+
+// Geri Alimi roundabout.
+const roundabout=new THREE.Mesh(
+  new THREE.CylinderGeometry(13,13,.4,40),
+  M.grass
+);
+roundabout.position.set(0,.15,-255);
+scene.add(roundabout);
+const ring=new THREE.Mesh(
+  new THREE.TorusGeometry(13,.2,8,48),
+  M.white
+);
+ring.rotation.x=Math.PI/2;
+ring.position.set(0,.42,-255);
+scene.add(ring);
+makeShop(-25,-278,9,8,4,"SHOP",0xe0bd88,false);
+makeShop(28,-277,9,8,4,"PROVISIONS",0xc3d7b1,false);
+
+// Airport approach.
+makeShop(130,-470,14,10,5,"AIRPORT ROAD",0xd5c59c,false);
+makePetrol(175,-450,"TOTALENERGIES","#c9292f");
+makePetrol(260,-520,"BOVAS","#d6a522");
+
+// Procedural neighbourhoods.
+const colours=[0xd8c6a4,0xc2d1ba,0xd3b8a0,0xe0d6c0,0xb8c9d2,0xe0c39b,0xc7bfa7];
+for(let i=0;i<100;i++){
+  const side=i%2===0?-1:1;
+  const t=Math.random();
+  const z=-25-t*570;
+  let roadX;
+  if(z>-150)roadX=0;
+  else if(z>-230)roadX=-35;
+  else if(z>-330)roadX=10;
+  else if(z>-440)roadX=75;
+  else if(z>-540)roadX=155;
+  else roadX=270;
+  const x=roadX+side*(18+Math.random()*25);
+  if(Math.abs(x)<13)continue;
+  const w=7+Math.random()*7,d=7+Math.random()*7,h=3+Math.random()*4;
+  makeHouse(x,z,colours[Math.floor(Math.random()*colours.length)]);
+  if(Math.random()>.45)makeTree(x+side*(w+3),z+5,.75);
+}
+
+// More recognizable roadside businesses.
+makeShop(-28,-55,10,8,4.5,"EATERY",0xd8b28c,false);
+makeShop(25,-78,10,8,4.5,"SUPERMARKET",0xd4d0a5,false);
+makeShop(-75,-160,11,8,4.5,"PHARMACY",0xb5d8d2,false);
+makeShop(45,-330,11,9,4.5,"FILLING STATION",0xe3c79b,false);
+makeShop(95,-390,12,9,5,"MOTOR PARTS",0xd9b6a0,false);
+makeShop(195,-535,12,9,5,"RESTAURANT",0xe3d1ac,false);
+
+// Airport grounds.
+const airport=new THREE.Group();
+airport.position.set(465,0,-640);
+scene.add(airport);
+
+box(airport,130,.1,100,0,.0,-25,mat(0x667d49),false);
+box(airport,37,.25,105,0,.05,-75,M.road,false);
+
+// Runway markings.
+for(let z=-120;z<-28;z+=12){
+  box(airport,.4,.03,4,0,.2,z,M.white,false);
+}
+for(const side of [-1,1]){
+  for(let z=-125;z<-25;z+=10){
+    box(airport,.35,.22,.35,side*17,.15,z,mat(0xfff2b8),false);
+  }
+}
+
+box(airport,48,5,15,0,0,0,M.airport);
+box(airport,52,.6,17,0,5,0,M.roof);
+box(airport,42,3,.18,0,1.2,-7.6,M.glass);
+box(airport,20,2,.18,-7,1.5,-7.75,M.glass);
+box(airport,12,7,10,27,0,0,M.airport);
+box(airport,13,.5,11,27,7,0,M.roof);
+box(airport,3,15,3,27,7,-5,M.white);
+box(airport,3,1,3,27,15,-5,M.red);
+
+// Static aircraft.
+const plane=new THREE.Group();
+plane.position.set(-8,.8,-65);
+airport.add(plane);
+const aircraftWhite=mat(0xe8e9e9,.4);
+box(plane,2,1.5,20,0,0,0,aircraftWhite);
+box(plane,23,.35,4,0,.2,0,aircraftWhite);
+box(plane,7,.3,3,0,.5,-7,aircraftWhite);
+box(plane,6,.3,3,0,.5,8,aircraftWhite);
+box(plane,1,.4,3,0,-.4,-2,M.dark);
+
+// Cars on the streets.
+const traffic=[];
+for(let i=0;i<9;i++){
+  const c=makeCar((i%2===0?-1:1)*(10+Math.random()*3),
+    -35-i*48,[0x8e2929,0x315c88,0xc7a72b,0xdddddd,0x39764c][i%5]);
+  c.rotation.y=0;
+  traffic.push({mesh:c,z:-35-i*48,speed:2+Math.random()*2});
+}
+
+// Player starts outside the General Post Office.
+const player=makePerson();
+player.position.set(0,0,24);
+scene.add(player);
+let playerYaw=0;
+let running=false;
+let inCar=false;
+let activeCar=null;
+let insideBuilding=null;
+let savedPosition=new THREE.Vector3(0,0,24);
+let runOn=false;
+let moveSpeed=0;
+
+const car=makeCar(4,17,0x9b2929);
+car.rotation.y=0;
+
+// Joystick input.
+const zone=$("stickZone"), knob=$("stick");
+let joyX=0,joyY=0,dragging=false,pointerId=null;
+
+function setJoystick(e){
+  const r=zone.getBoundingClientRect();
+  const cx=r.left+r.width/2,cy=r.top+r.height/2;
+  const max=r.width*.32;
+  let dx=e.clientX-cx,dy=e.clientY-cy;
+  const len=Math.hypot(dx,dy);
+  if(len>max){dx=dx/len*max;dy=dy/len*max}
+  joyX=dx/max;
+  joyY=dy/max;
+  knob.style.left=(r.width/2-30+dx)+"px";
+  knob.style.top=(r.height/2-30+dy)+"px";
+}
+zone.addEventListener("pointerdown",e=>{
+  dragging=true;pointerId=e.pointerId;
+  zone.setPointerCapture(pointerId);
+  setJoystick(e);
+});
+zone.addEventListener("pointermove",e=>{
+  if(dragging&&e.pointerId===pointerId)setJoystick(e);
+});
+function releaseStick(){
+  dragging=false;pointerId=null;joyX=0;joyY=0;
+  knob.style.left="calc(50% - 30px)";
+  knob.style.top="calc(50% - 30px)";
+}
+zone.addEventListener("pointerup",releaseStick);
+zone.addEventListener("pointercancel",releaseStick);
+zone.addEventListener("lostpointercapture",releaseStick);
+
+// Keyboard support for desktop testing.
+const keys={};
+addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true});
+addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false});
+
+$("run").onclick=()=>{
+  runOn=!runOn;
+  $("run").textContent=runOn?"🏃 RUN: ON":"🏃 RUN: OFF";
+};
+$("enter").onclick=enterCar;
+$("exit").onclick=exitCar;
+$("reset").onclick=()=>{
+  inCar=false;activeCar=null;insideBuilding=null;
+  player.visible=true;
+  player.position.set(0,0,24);
+  playerYaw=0;
+  car.position.set(4,.05,17);
+  car.rotation.y=0;
+  moveSpeed=0;
+  say("Returned to the General Post Office.");
+};
+$("interact").onclick=interactBuilding;
+
+function say(text){
+  const el=$("message");
+  el.textContent=text;el.style.display="block";
+  clearTimeout(say.timer);
+  say.timer=setTimeout(()=>el.style.display="none",2400);
+}
+
+function forwardVector(yaw){
+  return new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+}
+
+function blocked(pos,radius=.65){
+  for(const b of solid){
+    const dx=Math.max(Math.abs(pos.x-b.x)-b.w/2,0);
+    const dz=Math.max(Math.abs(pos.z-b.z)-b.d/2,0);
+    if(dx<radius&&dz<radius)return true;
+  }
+  return false;
+}
+
+function enterCar(){
+  if(inCar){
+    say("You're already driving.");
+    return;
+  }
+  const distance=player.position.distanceTo(car.position);
+  if(distance>6){
+    say("Walk closer to your car first.");
+    return;
+  }
+  inCar=true;
+  activeCar=car;
+  player.visible=false;
+  moveSpeed=0;
+  say("You're in the car. Push UP to drive and LEFT/RIGHT to steer.");
+}
+
+function exitCar(){
+  if(!inCar)return;
+  const side=new THREE.Vector3(1,0,0).applyAxisAngle(
+    new THREE.Vector3(0,1,0),activeCar.rotation.y
+  );
+  const p=activeCar.position.clone().add(side.multiplyScalar(2.4));
+  p.y=0;
+  if(blocked(p,.6)){p.z+=3}
+  player.position.copy(p);
+  playerYaw=activeCar.rotation.y;
+  player.visible=true;
+  inCar=false;
+  activeCar=null;
+  moveSpeed=0;
+  say("You left the car.");
+}
+
+function interactBuilding(){
+  if(inCar){say("Exit the car before entering a building.");return}
+  if(insideBuilding){
+    insideBuilding=null;
+    player.position.copy(savedPosition);
+    player.visible=true;
+    say("You came outside.");
+    return;
+  }
+  let nearest=null,dist=Infinity;
+  for(const b of enterables){
+    const d=Math.hypot(player.position.x-b.doorX,player.position.z-b.doorZ);
+    if(d<dist){dist=d;nearest=b}
+  }
+  if(!nearest||dist>4.5){
+    say("Move close to a building entrance first.");
+    return;
+  }
+  savedPosition.copy(player.position);
+  insideBuilding=nearest;
+  player.position.set(nearest.doorX,0,nearest.doorZ+2);
+  player.visible=true;
+  say("Entered: "+(nearest.name||"building"));
+}
+
+// GTA-style camera: the camera follows behind the player.
+// Turning the joystick turns the CHARACTER, not just the camera.
+const cameraTarget=new THREE.Vector3();
+const desiredCamera=new THREE.Vector3();
+const lookTarget=new THREE.Vector3();
+let cameraReady=false;
+
+function updateCamera(dt){
+  const focus=inCar?activeCar:player;
+  const yaw=inCar?activeCar.rotation.y:playerYaw;
+  const pos=focus.position;
+
+  const dist=inCar?10:7.5;
+  const height=inCar?4.8:4.2;
+  const backX=Math.sin(yaw)*dist;
+  const backZ=Math.cos(yaw)*dist;
+
+  desiredCamera.set(pos.x+backX,pos.y+height,pos.z+backZ);
+  lookTarget.set(pos.x,pos.y+(inCar?1.5:1.35),pos.z);
+
+  if(!cameraReady){
+    camera.position.copy(desiredCamera);
+    cameraReady=true;
+  }else{
+    camera.position.lerp(desiredCamera,1-Math.exp(-dt*5));
+  }
+
+  camera.lookAt(lookTarget);
+}
+
+function updateOnFoot(dt){
+  let turn=joyX;
+  let forward=-joyY;
+
+  if(keys["arrowleft"]||keys["a"])turn-=1;
+  if(keys["arrowright"]||keys["d"])turn+=1;
+  if(keys["arrowup"]||keys["w"])forward+=1;
+  if(keys["arrowdown"]||keys["s"])forward-=1;
+
+  turn=THREE.MathUtils.clamp(turn,-1,1);
+  forward=THREE.MathUtils.clamp(forward,-1,1);
+
+  // Horizontal joystick rotates the character itself.
+  if(Math.abs(turn)>.05){
+    playerYaw-=turn*2.25*dt;
+  }
+
+  // Forward always moves toward the direction the character faces.
+  const speed=(runOn?9.0:5.2);
+  const dir=forwardVector(playerYaw);
+  const amount=forward*speed*dt;
+
+  const next=player.position.clone().addScaledVector(dir,amount);
+  if(!blocked(next,.55)){
+    player.position.x=next.x;
+    player.position.z=next.z;
+  }
+
+  // Simple visible walking animation.
+  if(Math.abs(forward)>.08){
+    const swing=Math.sin(performance.now()*.012)*.08;
+    player.children[1].position.x=swing;
+  }
+
+  player.rotation.y=playerYaw;
+}
+
+function updateCar(dt){
+  let turn=joyX;
+  let throttle=-joyY;
+
+  if(keys["arrowleft"]||keys["a"])turn-=1;
+  if(keys["arrowright"]||keys["d"])turn+=1;
+  if(keys["arrowup"]||keys["w"])throttle+=1;
+  if(keys["arrowdown"]||keys["s"])throttle-=1;
+
+  turn=THREE.MathUtils.clamp(turn,-1,1);
+  throttle=THREE.MathUtils.clamp(throttle,-1,1);
+
+  moveSpeed+=throttle*11*dt;
+  moveSpeed*=Math.pow(.94,dt*60);
+  moveSpeed=THREE.MathUtils.clamp(moveSpeed,-5,17);
+
+  if(Math.abs(moveSpeed)>.2){
+    // Positive steering turns the car right while moving forward.
+    activeCar.rotation.y-=turn*1.55*dt*Math.sign(moveSpeed);
+  }
+
+  const dir=forwardVector(activeCar.rotation.y);
+  const next=activeCar.position.clone().addScaledVector(dir,moveSpeed*dt);
+
+  if(!blocked(next,1.4)){
+    activeCar.position.x=next.x;
+    activeCar.position.z=next.z;
+  }else{
+    moveSpeed=0;
+  }
+}
+
+function updateTraffic(dt){
+  for(const t of traffic){
+    t.mesh.position.z+=t.speed*dt;
+    if(t.mesh.position.z>45)t.mesh.position.z=-580;
+  }
+}
+
+function updateStatus(){
+  const p=inCar?activeCar.position:player.position;
+  let area="Ilorin";
+  if(p.z>-45)area="General Post Office";
+  else if(p.z>-145)area="Challenge";
+  else if(p.z>-225)area="A-Division";
+  else if(p.z>-300)area="Geri Alimi";
+  else if(p.z>-440)area="Airport Road";
+  else area="Ilorin Airport";
+
+  $("location").textContent=area.toUpperCase()+" · KWARA STATE";
+  $("status").textContent=inCar
+    ?"DRIVING · SPEED "+Math.abs(moveSpeed*6).toFixed(0)+" km/h"
+    :"ON FOOT · "+area.toUpperCase();
+  $("enter").textContent=inCar?"🚗 DRIVING":"🚗 ENTER CAR";
+  $("exit").style.display=inCar?"block":"none";
+  $("interact").textContent=insideBuilding?"🚪 EXIT BUILDING":"🚪 ENTER BUILDING";
+}
+
+// Extra roadside lighting and vegetation.
+for(let z=-25;z>-620;z-=38){
+  let x=z>-150?12:z>-230? -20:z>-330?28:z>-440?70:z>-540?160:280;
+  makeStreetlight(x,z);
+  makeTree(x+6,z+6,.8);
+}
+
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.04);
+
+  if(inCar)updateCar(dt);
+  else if(!insideBuilding)updateOnFoot(dt);
+
+  updateTraffic(dt);
+  updateCamera(dt);
+  updateStatus();
+  renderer.render(scene,camera);
+}
+animate();
+
+addEventListener("resize",()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+$("loading").style.display="none";
+say("Welcome to Ilorin! Push UP to move, LEFT/RIGHT to turn.");
+</script>
+</body>
+</html>
