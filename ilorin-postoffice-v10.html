@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Naija Streets V10 | Ilorin Open World</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #8ac6e9;
+  font-family: Arial, sans-serif;
+  touch-action: none;
+}
+
+#game, #game canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#hud {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 8px;
+  z-index: 10;
+  color: white;
+  background: #101820dc;
+  border: 1px solid #ffffff35;
+  border-radius: 12px;
+  padding: 9px 11px;
+  font-size: 11px;
+  line-height: 1.55;
+  pointer-events: none;
+}
+
+#title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #ffdc45;
+}
+
+#joystick {
+  position: fixed;
+  left: 18px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 12;
+  width: 145px;
+  height: 145px;
+  border-radius: 50%;
+  border: 3px solid #ffffffbb;
+  background: #202a36a8;
+  box-shadow: 0 3px 15px #0007;
+  touch-action: none;
+}
+
+#joystick::after {
+  content: "";
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  border: 1px solid #ffffff30;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+}
+
+#knob {
+  position: absolute;
+  width: 57px;
+  height: 57px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%,-50%);
+  border-radius: 50%;
+  border: 3px solid white;
+  background: linear-gradient(#fff,#abb7c2);
+  box-shadow: 0 3px 10px #0008;
+  pointer-events: none;
+}
+
+#controllerLabel {
+  position: fixed;
+  left: 25px;
+  bottom: calc(171px + env(safe-area-inset-bottom));
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  text-shadow: 0 2px 4px black;
+  pointer-events: none;
+}
+
+#buttons {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: 8px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-width: 135px;
+}
+
+button {
+  color: white;
+  background: #151b21e8;
+  border: 1px solid #ffffff8c;
+  border-radius: 10px;
+  padding: 10px 9px;
+  font-size: 11px;
+  font-weight: bold;
+  touch-action: manipulation;
+}
+
+#hint {
+  position: fixed;
+  right: 8px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  max-width: 140px;
+  padding: 9px;
+  color: white;
+  background: #101820c9;
+  border-radius: 10px;
+  font-size: 10px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+#notice {
+  position: fixed;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: #101820e8;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-size: 12px;
+  text-align: center;
+  max-width: 90%;
+  pointer-events: none;
+  display: none;
+}
+
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  background: #172e3c;
+  color: white;
+}
+
+@media(max-width:380px) {
+  #joystick {
+    width: 130px;
+    height: 130px;
+    left: 12px;
+  }
+
+  #knob {
+    width: 53px;
+    height: 53px;
+  }
+
+  #controllerLabel {
+    left: 16px;
+  }
+
+  #hint {
+    max-width: 115px;
+    font-size: 9px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div id="game"></div>
+
+<div id="hud">
+  <div id="title">🇳🇬 NAIJA STREETS V10</div>
+  <div>📍 <span id="location">General Post Office</span></div>
+  <div>🚗 Vehicle: <span id="vehicleStatus">On foot</span></div>
+  <div>💵 Cash: ₦25,000</div>
+  <div>⭐ Respect: 0</div>
+  <div>🧭 <span id="direction">Follow the road</span></div>
+</div>
+
+<div id="buttons">
+  <button id="enterBtn">🚗 ENTER CAR</button>
+  <button id="runBtn">🏃 RUN: OFF</button>
+  <button id="trafficBtn">🚦 TRAFFIC: ON</button>
+  <button id="resetBtn">↩ RESPAWN</button>
+</div>
+
+<div id="controllerLabel">MOVE / DRIVE</div>
+
+<div id="joystick">
+  <div id="knob"></div>
+</div>
+
+<div id="hint">
+  ⬆ Move / accelerate<br>
+  ⬇ Reverse<br>
+  ⬅ ➡ Turn / steer<br>
+  🚗 Approach your car<br>
+  🚪 Use the door to enter
+</div>
+
+<div id="notice"></div>
+
+<div id="loading">
+  <div>
+    <h2>🇳🇬 NAIJA STREETS V10</h2>
+    <p>Building Ilorin...</p>
+    <p>Preparing roads, vehicles, buildings and airport.</p>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+/* =====================================================
+   NAIJA STREETS V10
+   Ilorin-inspired open-world driving prototype.
+
+   Features:
+   - Post Office / Challenge / A-Division / Geri Alimi
+   - Airport road and airport terminal
+   - Drivable car with enter/exit
+   - Left joystick
+   - Automatic follow camera
+   - Collision with building walls
+   - Door openings and enterable interiors
+===================================================== */
+
+const $ = id => document.getElementById(id);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x91cbed);
+scene.fog = new THREE.Fog(0x91cbed, 220, 1700);
+
+const camera = new THREE.PerspectiveCamera(
+  65, innerWidth / innerHeight, 0.1, 2500
+);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: "high-performance"
+});
+
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = false;
+
+$("game").appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xe1f5ff, 0x62513b, 2.0));
+
+const sun = new THREE.DirectionalLight(0xffefcf, 2.0);
+sun.position.set(-100, 180, 100);
+scene.add(sun);
+
+/* ---------------- MATERIALS ---------------- */
+
+function mat(color, roughness=0.9) {
+  return new THREE.MeshStandardMaterial({ color, roughness });
+}
+
+const M = {
+  grass: mat(0x668d4e),
+  road: mat(0x35383c),
+  pavement: mat(0xb0ada3),
+  kerb: mat(0x85837d),
+  white: mat(0xf4f0e4),
+  yellow: mat(0xffd12e),
+  dark: mat(0x25292d),
+  glass: new THREE.MeshStandardMaterial({
+    color: 0x72b8d6,
+    roughness: 0.27,
+    metalness: 0.12
+  }),
+  tree: mat(0x2b7438),
+  trunk: mat(0x795234),
+  roof: mat(0x938d83)
+};
+
+const random = (a,b) => a + Math.random()*(b-a);
+
+function box(parent,w,h,d,material,x,y,z) {
+  const o = new THREE.Mesh(
+    new THREE.BoxGeometry(w,h,d),
+    material
+  );
+  o.position.set(x,y+h/2,z);
+  parent.add(o);
+  return o;
+}
+
+function cylinder(parent,rt,rb,h,material,x,y,z,segments=10) {
+  const o = new THREE.Mesh(
+    new THREE.CylinderGeometry(rt,rb,h,segments),
+    material
+  );
+  o.position.set(x,y+h/2,z);
+  parent.add(o);
+  return o;
+}
+
+function signTexture(text,bg,fg="#ffffff") {
+  const c=document.createElement("canvas");
+  c.width=512;
+  c.height=128;
+
+  const ctx=c.getContext("2d");
+  ctx.fillStyle=bg;
+  ctx.fillRect(0,0,512,128);
+  ctx.fillStyle=fg;
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.font="bold 38px Arial";
+  ctx.fillText(text,256,64,490);
+
+  const t=new THREE.CanvasTexture(c);
+  t.colorSpace=THREE.SRGBColorSpace;
+  return t;
+}
+
+function sign(parent,text,x,y,z,w,h,bg,fg="#ffffff") {
+  const o=new THREE.Mesh(
+    new THREE.PlaneGeometry(w,h),
+    new THREE.MeshBasicMaterial({
+      map:signTexture(text,bg,fg),
+      side:THREE.DoubleSide
+    })
+  );
+
+  o.position.set(x,y,z);
+  parent.add(o);
+  return o;
+}
+
+/* ---------------- WORLD GROUND ---------------- */
+
+box(scene,2800,0.5,3400,M.grass,0,-0.4,-1000);
+
+/* ---------------- ROAD NETWORK ---------------- */
+
+/*
+  Coordinates are a simplified game map, not survey-grade
+  GPS coordinates. The route has bends and junctions so the
+  player must steer onto the airport road.
+*/
+
+const roadPoints = [
+  new THREE.Vector3(0,0,35),       // Post Office
+  new THREE.Vector3(0,0,-65),
+  new THREE.Vector3(0,0,-145),     // Challenge
+  new THREE.Vector3(0,0,-235),     // A-Division
+  new THREE.Vector3(0,0,-310),
+  new THREE.Vector3(0,0,-365),     // Geri Alimi
+  new THREE.Vector3(12,0,-400),
+  new THREE.Vector3(45,0,-425),
+  new THREE.Vector3(90,0,-440),    // Airport Road
+  new THREE.Vector3(150,0,-470),
+  new THREE.Vector3(225,0,-500),
+  new THREE.Vector3(310,0,-525),
+  new THREE.Vector3(390,0,-550),
+  new THREE.Vector3(465,0,-575)
+];
+
+const routeCurve = new THREE.CatmullRomCurve3(roadPoints);
+const routeLength = routeCurve.getLength();
+const routeSamples = routeCurve.getPoints(500);
+
+/* Construct the road in short oriented sections. */
+
+function roadSection(a,b,width=22,material=M.road) {
+  const mid=new THREE.Vector3().addVectors(a,b).multiplyScalar(0.5);
+  const dx=b.x-a.x;
+  const dz=b.z-a.z;
+  const length=Math.sqrt(dx*dx+dz*dz);
+
+  const o=box(scene,width,0.12,length,material,
+              mid.x,0,mid.z);
+
+  o.rotation.y=Math.atan2(dx,dz);
+  return o;
+}
+
+for(let i=0;i<routeSamples.length-1;i++) {
+  roadSection(routeSamples[i],routeSamples[i+1],23);
+}
+
+/* Lane markings following the road. */
+
+function makeLaneMarkings(curve) {
+  const steps=220;
+
+  for(let i=0;i<steps;i++) {
+    if(i%2!==0) continue;
+
+    const t1=i/steps;
+    const t2=Math.min(1,(i+0.65)/steps);
+
+    const a=curve.getPointAt(t1);
+    const b=curve.getPointAt(t2);
+
+    a.y=0.09;
+    b.y=0.09;
+
+    roadSection(a,b,0.16,M.yellow);
+  }
+}
+
+makeLaneMarkings(routeCurve);
+
+/* Sidewalks on the main road. */
+
+function addRoadsidePavement(curve,side,width=2.5) {
+  const steps=170;
+
+  for(let i=0;i<steps;i++) {
+    const t1=i/steps;
+    const t2=Math.min(1,(i+1)/steps);
+
+    const a=curve.getPointAt(t1);
+    const b=curve.getPointAt(t2);
+
+    const tangent=curve.getTangentAt(t1);
+    const normal=new THREE.Vector3(
+      tangent.z,0,-tangent.x
+    ).normalize().multiplyScalar(side*13.5);
+
+    a.add(normal);
+    b.add(normal);
+
+    roadSection(a,b,width,M.pavement);
+  }
+}
+
+addRoadsidePavement(routeCurve,-1);
+addRoadsidePavement(routeCurve,1);
+
+/* Secondary roads and neighbourhood streets. */
+
+function sideRoad(x,z,width=60,length=100,rotation=0) {
+  const o=box(scene,width,0.12,length,M.road,x,0.02,z);
+  o.rotation.y=rotation;
+
+  for(let p=-length/2+8;p<length/2;p+=16) {
+    const dash=box(scene,0.14,0.03,6,M.white,x,0.09,z+p);
+    dash.rotation.y=rotation;
+  }
+}
+
+for(const z of [-40,-115,-195,-275,-325]) {
+  sideRoad(-55,z,65,48);
+  sideRoad(55,z,65,48);
+}
+
+sideRoad(-80,-510,95,70);
+sideRoad(130,-600,110,75);
+sideRoad(280,-680,130,80);
+
+/* ---------------- COLLISION SYSTEM ---------------- */
+
+const solidBoxes = [];
+const doorways = [];
+const enterableBuildings = [];
+
+function addSolid(x,z,w,d) {
+  solidBoxes.push({x,z,w,d});
+}
+
+function overlaps(x,z,radius,b) {
+  const nx=Math.max(b.x-b.w/2,
+              Math.min(x,b.x+b.w/2));
+
+  const nz=Math.max(b.z-b.d/2,
+              Math.min(z,b.z+b.d/2));
+
+  return (x-nx)*(x-nx)+(z-nz)*(z-nz)
+         < radius*radius;
+}
+
+function canMoveTo(x,z,radius) {
+  for(const b of solidBoxes) {
+    if(overlaps(x,z,radius,b)) return false;
+  }
+
+  return true;
+}
+
+/* ---------------- BUILDINGS WITH REAL DOOR GAPS ---------------- */
+
+const shopNames = [
+  "MTN","AIRTEL","GLO","UBA","FIRST BANK","FCMB",
+  "ACCESS BANK","POS SERVICES","SUPERMARKET",
+  "PHONE ACCESSORIES","PHARMACY","BOUTIQUE",
+  "BARBER SHOP","RESTAURANT","BAKERY","HOTEL",
+  "MOTOR SPARE PARTS","COMPUTER CENTRE",
+  "FASHION HOUSE","PROVISION STORE","ILORIN BUSINESS CENTRE"
+];
+
+const shopColors = [
+  "#b92929","#187640","#2454a2","#d5a323",
+  "#5a3385","#d65b19","#252c33","#087e81"
+];
+
+const wallColors = [
+  0xe5cba5,0xd8d5c9,0xc7b39b,0xd7c6a6,
+  0xbac6bc,0xe9ded0,0xd2b99d,0xc9c6bb
+];
+
+let buildingCount=0;
+
+function makeBuilding(x,z,type="shop",index=0,enterable=false) {
+  const g=new THREE.Group();
+
+  const w=type==="shop"?random(8,12):random(10,17);
+  const d=type==="shop"?random(9,13):random(11,17);
+  const h=type==="shop"?random(5,8):random(4,9);
+
+  const wall=mat(wallColors[
+    Math.floor(Math.random()*wallColors.length)
+  ]);
+
+  const frontZ=d/2;
+  const doorWidth=enterable?1.8:0;
+
+  /* Floor and roof */
+
+  box(g,w,0.18,d,M.pavement,0,0,0);
+  box(g,w,0.3,d,M.roof,0,h,0);
+
+  /*
+    Four walls are separate. Enterable buildings have an
+    actual gap in the front wall for the doorway.
+  */
+
+  box(g,0.22,h,d,wall,-w/2,0,0);
+  box(g,0.22,h,d,wall,w/2,0,0);
+  box(g,w,h,0.22,wall,0,0,-d/2);
+
+  if(enterable) {
+    const sideW=(w-doorWidth)/2;
+
+    box(g,sideW,h,0.22,wall,
+        -doorWidth/2-sideW/2,0,frontZ);
+
+    box(g,sideW,h,0.22,wall,
+        doorWidth/2+sideW/2,0,frontZ);
+
+    /* Door frame and visible entrance */
+
+    box(g,0.13,2.5,0.15,M.dark,
+        -doorWidth/2,0,frontZ);
+
+    box(g,0.13,2.5,0.15,M.dark,
+        doorWidth/2,0,frontZ);
+
+    box(g,doorWidth,0.13,0.15,M.dark,
+        0,2.45,frontZ);
+
+    doorways.push({
+      x:x,
+      z:z+frontZ+1,
+      width:doorWidth,
+      building:g
+    });
+
+    enterableBuildings.push({
+      x:x,
+      z:z,
+      width:w,
+      depth:d,
+      height:h,
+      group:g
+    });
+
+  } else {
+    box(g,w,h,0.22,wall,0,0,frontZ);
+  }
+
+  /* Windows */
+
+  const glass=mat(0x75b7d4,0.25);
+
+  for(let wx=-w/2+1.7;wx<w/2-0.8;wx+=2.7) {
+    if(enterable && Math.abs(wx)<doorWidth/2+0.6) continue;
+
+    box(g,1.15,1.3,0.08,glass,wx,1.8,frontZ+0.13);
+  }
+
+  if(type==="shop") {
+    const name=shopNames[index%shopNames.length];
+    const color=shopColors[index%shopColors.length];
+
+    box(g,w+0.15,1.1,0.18,M.dark,
+        0,Math.min(h-1.2,3.7),frontZ+0.13);
+
+    sign(g,name,0,Math.min(h-0.6,4.3),
+         frontZ+0.24,w-0.3,0.8,color);
+  } else if(type==="house") {
+    sign(g,"RESIDENCE",0,3.4,frontZ+0.15,
+         w-1,0.6,"#345c3b");
+  }
+
+  g.position.set(x,0,z);
+  scene.add(g);
+
+  /*
+    Collision is built from the actual wall segments.
+    The front door gap is deliberately not blocked.
+  */
+
+  addSolid(x-w/2,z,0.4,d);
+  addSolid(x+w/2,z,0.4,d);
+  addSolid(x,z-d/2,w,0.4);
+
+  if(!enterable) {
+    addSolid(x,z+d/2,w,0.4);
+  } else {
+    addSolid(x-(w+doorWidth)/4,z+d/2,
+             (w-doorWidth)/2,0.4);
+
+    addSolid(x+(w+doorWidth)/4,z+d/2,
+             (w-doorWidth)/2,0.4);
+  }
+
+  buildingCount++;
+}
+
+/* Commercial streets close to Post Office and Challenge. */
+
+for(let z=-20;z>-330;z-=15) {
+  makeBuilding(-22,z,"shop",buildingCount,buildingCount%7===0);
+  makeBuilding(22,z-5,"shop",buildingCount,buildingCount%8===0);
+}
+
+/* Houses and shops around A-Division and nearby streets. */
+
+for(let z=-350;z>-750;z-=22) {
+  for(const side of [-1,1]) {
+    const type=Math.random()<0.45?"shop":"house";
+
+    makeBuilding(
+      side*random(22,37),z,type,buildingCount,
+      buildingCount%6===0
+    );
+
+    makeBuilding(
+      side*random(55,90),z-10,"house",
+      buildingCount,buildingCount%11===0
+    );
+  }
+}
+
+/* Airport-road neighbourhoods. */
+
+for(let i=0;i<35;i++) {
+  const p=routeCurve.getPointAt(0.55+i*0.012);
+
+  for(const side of [-1,1]) {
+    makeBuilding(
+      p.x+side*random(24,70),
+      p.z+random(-12,12),
+      Math.random()<0.3?"shop":"house",
+      buildingCount,buildingCount%9===0
+    );
+  }
+}
+
+/* ---------------- LANDMARKS ---------------- */
+
+function landmark(text,x,z,color="#155a36",width=23) {
+  const g=new THREE.Group();
+
+  box(g,width,4.8,0.7,mat(color),0,3.5,0);
+
+  sign(g,text,0,5.9,0.42,width-0.5,1.5,color);
+
+  cylinder(g,0.25,0.3,3.5,M.concrete,
+           -width/2+1,0,0);
+
+  cylinder(g,0.25,0.3,3.5,M.concrete,
+           width/2-1,0,0);
+
+  g.position.set(x,0,z);
+  scene.add(g);
+}
+
+landmark("GENERAL POST OFFICE",0,-17,"#14572e",25);
+landmark("CHALLENGE",0,-150,"#b92b2b",18);
+landmark("A-DIVISION POLICE STATION",0,-255,"#1c4384",27);
+landmark("GERI ALIMI ROUNDABOUT",0,-365,"#176a40",27);
+landmark("AIRPORT ROAD",120,-450,"#19588d",18);
+
+/* ---------------- GERI ALIMI ROUNDABOUT ---------------- */
+
+const roundabout=new THREE.Group();
+
+const ring=new THREE.Mesh(
+  new THREE.RingGeometry(10,17,48),
+  M.road
+);
+
+ring.rotation.x=-Math.PI/2;
+ring.position.set(0,0.09,0);
+roundabout.add(ring);
+
+const centre=new THREE.Mesh(
+  new THREE.CylinderGeometry(9,9,0.3,32),
+  M.grass
+);
+
+centre.position.y=0.15;
+roundabout.add(centre);
+
+cylinder(roundabout,0.5,0.7,4,M.concrete,0,0,0);
+
+roundabout.position.set(0,0,-365);
+scene.add(roundabout);
+
+/* ---------------- FLYOVER ---------------- */
+
+function flyover(x,z) {
+  const g=new THREE.Group();
+
+  box(g,27,0.7,36,M.concrete,0,5,0);
+
+  box(g,0.5,1.1,36,M.kerb,-13.3,5.4,0);
+  box(g,0.5,1.1,36,M.kerb,13.3,5.4,0);
+
+  for(const px of [-9,9]) {
+    for(const pz of [-10,10]) {
+      box(g,1.4,5,1.4,M.concrete,px,0,pz);
+    }
+  }
+
+  g.position.set(x,0,z);
+  scene.add(g);
+}
+
+flyover(0,-20);
+
+/* ---------------- PETROL STATIONS ---------------- */
+
+function petrolStation(x,z,name,color) {
+  const g=new THREE.Group();
+
+  box(g,22,0.15,26,M.pavement,0,0,0);
+  box(g,17,0.55,10,mat(color),0,5,-2);
+
+  for(const px of [-7,0,7]) {
+    box(g,0.35,4.8,0.35,M.white,px,0.2,-2);
+    box(g,1.25,2.1,1.2,mat(0xe6dfd0),px,0.2,1.5);
+    box(g,0.8,0.5,0.1,M.dark,px,1.4,2.13);
+  }
+
+  sign(g,name,0,5.5,-2,15,1.1,color);
+
+  g.position.set(x,0,z);
+  scene.add(g);
+}
+
+petrolStation(-43,-80,"TOTALENERGIES","#c8262b");
+petrolStation(45,-225,"BOVAS","#16733a");
+petrolStation(-44,-285,"CONOIL","#1c4b9a");
+
+/* ---------------- TREES AND STREETLIGHTS ---------------- */
+
+function tree(x,z) {
+  cylinder(scene,0.22,0.32,3.2,M.trunk,x,0,z);
+
+  const crown=new THREE.Mesh(
+    new THREE.SphereGeometry(2,8,7),
+    M.tree
+  );
+
+  crown.position.set(x,4.2,z);
+  scene.add(crown);
+}
+
+function streetlight(x,z) {
+  cylinder(scene,0.07,0.12,6.5,M.dark,x,0,z);
+
+  box(scene,1.7,0.12,0.12,M.dark,
+      x+(x<0?0.7:-0.7),6.3,z);
+}
+
+for(let i=0;i<85;i++) {
+  const p=routeCurve.getPointAt(i/85);
+
+  tree(p.x-18,p.z);
+  tree(p.x+18,p.z-7);
+
+  streetlight(p.x-14,p.z-5);
+  streetlight(p.x+14,p.z-5);
+}
+
+/* ---------------- AIRPORT COMPLEX ---------------- */
+
+/*
+  The airport is a larger, distinct complex with terminal,
+  glass frontage, tower, parking, runway and aircraft.
+  It is a game-built approximation, not an exact airport scan.
+*/
+
+const airport=new THREE.Group();
+scene.add(airport);
+
+/* Airport apron */
+
+box(airport,230,0.12,180,M.pavement,0,0,0);
+
+/* Terminal building */
+
+box(airport,100,10,18,mat(0xe0ded4),0,0.15,0);
+box(airport,104,0.8,20,M.roof,0,10.15,0);
+
+/* Glass frontage */
+
+for(let x=-43;x<=43;x+=8) {
+  box(airport,5.6,6.2,0.12,M.glass,
+      x,1.3,9.15);
+}
+
+box(airport,105,0.5,1.4,mat(0x1c5c89),0,6.8,9.2);
+
+sign(airport,"GENERAL TUNDE IDIAGBON INTERNATIONAL AIRPORT",
+     0,7.2,10,90,1.3,"#155b8b");
+
+/* Entrance doors */
+
+for(const x of [-5,0,5]) {
+  box(airport,2.3,4.2,0.12,M.glass,x,0.4,9.3);
+}
+
+/* Airport control tower */
+
+box(airport,9,24,9,mat(0xd9d7ce),42,0.15,-5);
+box(airport,12,4,12,mat(0x2d5d76),40,22.15,-5);
+box(airport,11,0.4,11,M.roof,40,26.15,-5);
+
+/* Tower windows */
+
+for(const x of [37,40,43]) {
+  box(airport,0.7,2.4,0.08,M.glass,x,23.1,-0.35);
+}
+
+/* Runway */
+
+box(airport,48,0.08,430,M.road,0,0.1,-290);
+
+for(let z=-80;z>-500;z-=18) {
+  box(airport,0.8,0.03,9,M.white,0,0.17,z);
+}
+
+for(const side of [-1,1]) {
+  for(let z=-75;z>-500;z-=25) {
+    box(airport,0.4,0.04,1.3,M.white,side*20,0.17,z);
+  }
+}
+
+/* Runway lights */
+
+for(const side of [-1,1]) {
+  for(let z=-60;z>-500;z-=18) {
+    const bulb=new THREE.Mesh(
+      new THREE.SphereGeometry(0.18,6,5),
+      mat(0xffe7b1)
+    );
+
+    bulb.position.set(side*25,0.3,z);
+    airport.add(bulb);
+  }
+}
+
+/* Static aircraft */
+
+function makePlane(x,z) {
+  const g=new THREE.Group();
+  const fuselage=mat(0xe9ecef);
+  const wing=mat(0xc8d0d5);
+
+  /* Main fuselage */
+
+  const body=cylinder(g,1.15,1.15,18,fuselage,0,2,0,12);
+  body.rotation.x=Math.PI/2;
+
+  /* Wings */
+
+  box(g,24,0.25,4,wing,0,2,0);
+
+  /* Tail */
+
+  box(g,7,0.25,3,wing,0,3,-7);
+  box(g,0.25,3.5,2,wing,0,3.5,-8);
+
+  /* Engines */
+
+  for(const ex of [-5,5]) {
+    cylinder(g,0.65,0.65,3,M.dark,ex,0.8,-1,10)
+      .rotation.x=Math.PI/2;
+  }
+
+  /* Cockpit */
+
+  box(g,1.8,0.7,1.5,M.glass,0,2.4,-8.5);
+
+  g.position.set(x,0,z);
+  g.rotation.y=Math.PI;
+  airport.add(g);
+}
+
+makePlane(-25,-320);
+
+/* Airport car park */
+
+for(let x=-75;x<=75;x+=10) {
+  box(airport,0.12,0.03,16,M.white,x,0.18,22);
+}
+
+airport.position.set(465,0,-575);
+
+/* ---------------- PLAYER ---------------- */
+
+const player=new THREE.Group();
+scene.add(player);
+
+const character=new THREE.Group();
+player.add(character);
+
+const skin=mat(0x8d5637);
+const shirt=mat(0x2278a7);
+const trousers=mat(0x272c34);
+const shoes=mat(0x111111);
+
+cylinder(character,0.38,0.44,1.05,shirt,0,0.85,0,10);
+
+const head=new THREE.Mesh(
+  new THREE.SphereGeometry(0.3,12,10),skin
+);
+
+head.position.set(0,2.1,0);
+character.add(head);
+
+const hair=new THREE.Mesh(
+  new THREE.SphereGeometry(0.31,12,8),mat(0x171412)
+);
+
+hair.position.set(0,2.3,0);
+character.add(hair);
+
+/* Face points forward along negative Z. */
+
+box(character,0.13,0.1,0.13,M.white,0,2.1,-0.28);
+
+for(const side of [-1,1]) {
+  const arm=cylinder(character,0.12,0.15,0.82,skin,
+                     side*0.46,0.84,0,8);
+  arm.rotation.z=side*-0.12;
+
+  cylinder(character,0.15,0.18,0.8,trousers,
+           side*0.2,0.05,0,8);
+
+  box(character,0.27,0.14,0.4,shoes,
+      side*0.2,0.03,-0.12);
+}
+
+/* ---------------- DRIVABLE CAR ---------------- */
+
+function createCar(color=0x1c5eaa) {
+  const car=new THREE.Group();
+
+  box(car,2.2,0.8,4.5,mat(color),0,0.55,0);
+  box(car,1.7,0.8,2.1,M.glass,0,1.25,-0.15);
+
+  box(car,1.6,0.15,1.1,mat(color),0,1.85,0.1);
+
+  for(const wx of [-1.05,1.05]) {
+    for(const wz of [-1.45,1.45]) {
+      const wheel=cylinder(car,0.34,0.34,0.22,M.dark,
+                           wx,0.15,wz,12);
+      wheel.rotation.z=Math.PI/2;
+    }
+  }
+
+  for(const hx of [-0.7,0.7]) {
+    box(car,0.35,0.22,0.08,mat(0xfff0c2),
+        hx,0.82,-2.28);
+
+    box(car,0.35,0.22,0.08,mat(0xf52b22),
+        hx,0.82,2.28);
+  }
+
+  /* Simple seats visible through the windows */
+
+  box(car,0.65,0.65,0.55,mat(0x333333),
+      -0.48,0.65,-0.25);
+
+  box(car,0.65,0.65,0.55,mat(0x333333),
+      0.48,0.65,-0.25);
+
+  scene.add(car);
+  return car;
+}
+
+const car=createCar();
+car.position.set(4,0,15);
+
+/* ---------------- ENTER / EXIT CAR ---------------- */
+
+let inCar=false;
+let runMode=false;
+let trafficOn=true;
+let carSpeed=0;
+let playerYaw=0;
+let cameraYaw=0;
+
+function showNotice(text) {
+  $("notice").textContent=text;
+  $("notice").style.display="block";
+
+  clearTimeout(showNotice.timer);
+
+  showNotice.timer=setTimeout(()=>{
+    $("notice").style.display="none";
+  },2200);
+}
+
+function distance2D(a,b) {
+  return Math.hypot(a.x-b.x,a.z-b.z);
+}
+
+function enterExitCar() {
+  if(!inCar) {
+    if(distance2D(player.position,car.position)>5.5) {
+      showNotice("Walk closer to the driver's door first.");
+      return;
+    }
+
+    inCar=true;
+    character.visible=false;
+    carSpeed=0;
+
+    $("enterBtn").textContent="🚪 EXIT CAR";
+    $("vehicleStatus").textContent="Driving";
+
+    showNotice("You entered the car. Push up to drive.");
+  } else {
+    if(Math.abs(carSpeed)>1.5) {
+      showNotice("Stop the car before getting out.");
+      return;
+    }
+
+    inCar=false;
+    character.visible=true;
+
+    const exitX=car.position.x+
+      Math.cos(car.rotation.y)*2.5;
+
+    const exitZ=car.position.z+
+      Math.sin(car.rotation.y)*2.5;
+
+    const safe=canMoveTo(exitX,exitZ,0.7);
+
+    player.position.set(
+      safe?exitX:car.position.x+3,
+      0,
+      safe?exitZ:car.position.z
+    );
+
+    playerYaw=car.rotation.y;
+
+    $("enterBtn").textContent="🚗 ENTER CAR";
+    $("vehicleStatus").textContent="On foot";
+
+    showNotice("You exited the car.");
+  }
+}
+
+$("enterBtn").addEventListener("click",enterExitCar);
+
+$("runBtn").addEventListener("click",()=>{
+  runMode=!runMode;
+  $("runBtn").textContent=runMode?"🏃 RUN: ON":"🏃 RUN: OFF";
+});
+
+$("trafficBtn").addEventListener("click",()=>{
+  trafficOn=!trafficOn;
+  $("trafficBtn").textContent=
+    trafficOn?"🚦 TRAFFIC: ON":"🚦 TRAFFIC: OFF";
+});
+
+$("resetBtn").addEventListener("click",()=>{
+  inCar=false;
+  carSpeed=0;
+  player.position.set(0,0,35);
+  playerYaw=0;
+  cameraYaw=0;
+  character.visible=true;
+  car.position.set(4,0,15);
+  car.rotation.y=0;
+
+  $("enterBtn").textContent="🚗 ENTER CAR";
+  $("vehicleStatus").textContent="On foot";
+
+  showNotice("Returned to General Post Office.");
+});
+
+/* ---------------- TRAFFIC ---------------- */
+
+const trafficCars=[];
+const trafficColors=[
+  0xe8e8e8,0x202020,0xa52b26,0x285b9e,
+  0xd1ad39,0x27703b,0x8d8d91
+];
+
+function makeTrafficCar(x,z,color,direction) {
+  const g=new THREE.Group();
+
+  box(g,2,0.75,4.2,mat(color),0,0.55,0);
+  box(g,1.55,0.7,1.9,M.glass,0,1.25,-0.1);
+
+  for(const wx of [-0.95,0.95]) {
+    for(const wz of [-1.35,1.35]) {
+      const w=cylinder(g,0.3,0.3,0.2,M.dark,wx,0.15,wz,8);
+      w.rotation.z=Math.PI/2;
+    }
+  }
+
+  g.position.set(x,0,z);
+  if(direction===1) g.rotation.y=Math.PI;
+
+  scene.add(g);
+
+  trafficCars.push({
+    mesh:g,
+    direction,
+    speed:random(5,11)
+  });
+}
+
+for(let i=0;i<26;i++) {
+  makeTrafficCar(
+    i%2===0?-4:4,
+    20-i*35,
+    trafficColors[i%trafficColors.length],
+    i%2===0?-1:1
+  );
+}
+
+/* ---------------- PEDESTRIANS ---------------- */
+
+const pedestrians=[];
+
+for(let i=0;i<80;i++) {
+  const g=new THREE.Group();
+
+  cylinder(g,0.18,0.23,0.85,
+    mat([0xb62f29,0x226ba4,0xd4a42b,0x348449,0xe7e1d6][i%5]),
+    0,0.7,0,8);
+
+  const h=new THREE.Mesh(
+    new THREE.SphereGeometry(0.18,8,7),skin
+  );
+
+  h.position.y=1.58;
+  g.add(h);
+
+  const side=i%2===0?-1:1;
+  const p=routeCurve.getPointAt((i%70)/70);
+
+  g.position.set(p.x+side*random(15,25),0,p.z);
+
+  scene.add(g);
+
+  pedestrians.push({
+    mesh:g,
+    homeX:g.position.x,
+    homeZ:g.position.z,
+    phase:Math.random()*6.28
+  });
+}
+
+/* ---------------- JOYSTICK ---------------- */
+
+const joystick=$("joystick");
+const knob=$("knob");
+
+let joyX=0;
+let joyY=0;
+let pointerId=null;
+
+function clamp(v,a,b) {
+  return Math.max(a,Math.min(b,v));
+}
+
+function resetStick() {
+  joyX=0;
+  joyY=0;
+  pointerId=null;
+  knob.style.left="50%";
+  knob.style.top="50%";
+}
+
+function updateStick(e) {
+  const r=joystick.getBoundingClientRect();
+
+  let dx=e.clientX-(r.left+r.width/2);
+  let dy=e.clientY-(r.top+r.height/2);
+
+  const radius=Math.min(r.width,r.height)*0.34;
+  const length=Math.hypot(dx,dy);
+
+  if(length>radius) {
+    dx=dx/length*radius;
+    dy=dy/length*radius;
+  }
+
+  knob.style.left=`calc(50% + ${dx}px)`;
+  knob.style.top=`calc(50% + ${dy}px)`;
+
+  joyX=clamp(dx/radius,-1,1);
+  joyY=clamp(dy/radius,-1,1);
+}
+
+joystick.addEventListener("pointerdown",e=>{
+  e.preventDefault();
+
+  if(pointerId!==null) return;
+
+  pointerId=e.pointerId;
+
+  try {
+    joystick.setPointerCapture(e.pointerId);
+  } catch(err) {}
+
+  updateStick(e);
+});
+
+joystick.addEventListener("pointermove",e=>{
+  if(e.pointerId!==pointerId) return;
+  e.preventDefault();
+  updateStick(e);
+});
+
+joystick.addEventListener("pointerup",e=>{
+  if(e.pointerId===pointerId) resetStick();
+});
+
+joystick.addEventListener("pointercancel",resetStick);
+joystick.addEventListener("lostpointercapture",resetStick);
+
+/* ---------------- MOVEMENT / DRIVING ---------------- */
+
+const clock=new THREE.Clock();
+
+const forward=new THREE.Vector3();
+const right=new THREE.Vector3();
+
+function shortestAngle(a,b) {
+  return Math.atan2(Math.sin(b-a),Math.cos(b-a));
+}
+
+function updateLocation() {
+  const p=inCar?car.position:player.position;
+
+  if(p.x>430 && p.z<-520) {
+    $("location").textContent="Ilorin Airport";
+    $("direction").textContent="Airport terminal";
+    return;
+  }
+
+  if(p.z>-80) {
+    $("location").textContent="General Post Office";
+    $("direction").textContent="Follow Murtala Mohammed Way";
+  } else if(p.z>-190) {
+    $("location").textContent="Challenge";
+    $("direction").textContent="Continue toward A-Division";
+  } else if(p.z>-320) {
+    $("location").textContent="A-Division";
+    $("direction").textContent="Continue toward Geri Alimi";
+  } else if(p.z>-390) {
+    $("location").textContent="Geri Alimi Roundabout";
+    $("direction").textContent="Turn onto Airport Road";
+  } else if(p.x<200) {
+    $("location").textContent="Airport Road";
+    $("direction").textContent="Follow the bend";
+  } else {
+    $("location").textContent="Ilorin Airport Road";
+    $("direction").textContent="Continue to the airport";
+  }
+}
+
+function moveOnFoot(dt) {
+  forward.set(-Math.sin(playerYaw),0,-Math.cos(playerYaw));
+  right.set(Math.cos(playerYaw),0,-Math.sin(playerYaw));
+
+  const movement=new THREE.Vector3();
+
+  movement.addScaledVector(forward,-joyY);
+  movement.addScaledVector(right,joyX);
+
+  const amount=movement.length();
+
+  if(amount>0.12) {
+    movement.normalize();
+
+    const speed=runMode?13:7.5;
+    const distance=speed*Math.min(amount,1)*dt;
+
+    const nx=player.position.x+movement.x*distance;
+    const nz=player.position.z+movement.z*distance;
+
+    if(canMoveTo(nx,player.position.z,0.65)) {
+      player.position.x=nx;
+    }
+
+    if(canMoveTo(player.position.x,nz,0.65)) {
+      player.position.z=nz;
+    }
+
+    const target=Math.atan2(-movement.x,-movement.z);
+    playerYaw+=shortestAngle(playerYaw,target)*
+      (1-Math.exp(-8*dt));
+
+    character.position.y=Math.abs(Math.sin(
+      clock.elapsedTime*(runMode?14:9)
+    ))*0.045;
+  }
+
+  player.rotation.y=playerYaw;
+}
+
+function moveCar(dt) {
+  /*
+    GTA-style simple vehicle physics:
+    - accelerate forward
+    - reverse
+    - gradual friction
+    - steering becomes stronger while moving
+  */
+
+  const throttle=-joyY;
+  const steering=joyX;
+
+  if(throttle>0.08) {
+    carSpeed+=throttle*13*dt;
+  } else if(throttle<-0.08) {
+    carSpeed+=throttle*9*dt;
+  } else {
+    carSpeed*=Math.exp(-1.35*dt);
+  }
+
+  carSpeed=clamp(carSpeed,-8,24);
+
+  const steerStrength=Math.min(
+    1,Math.abs(carSpeed)/3
+  );
+
+  /*
+    Negative steering turns left.
+    Positive steering turns right.
+  */
+
+  car.rotation.y+=steering*1.65*steerStrength*
+    Math.sign(carSpeed||1)*dt;
+
+  const dir=new THREE.Vector3(
+    -Math.sin(car.rotation.y),0,-Math.cos(car.rotation.y)
+  );
+
+  const distance=carSpeed*dt;
+
+  const nx=car.position.x+dir.x*distance;
+  const nz=car.position.z+dir.z*distance;
+
+  /*
+    The car has a larger collision radius than the player.
+    Buildings cannot be driven through.
+  */
+
+  if(canMoveTo(nx,car.position.z,1.8)) {
+    car.position.x=nx;
+  } else {
+    carSpeed*=0.25;
+  }
+
+  if(canMoveTo(car.position.x,nz,1.8)) {
+    car.position.z=nz;
+  } else {
+    carSpeed*=0.25;
+  }
+
+  player.position.copy(car.position);
+  player.rotation.y=car.rotation.y;
+  playerYaw=car.rotation.y;
+
+  $("vehicleStatus").textContent=
+    Math.abs(carSpeed)<0.5?"Stopped":"Driving";
+}
+
+/* ---------------- AUTOMATIC FOLLOW CAMERA ---------------- */
+
+const desiredCamera=new THREE.Vector3();
+const lookAtTarget=new THREE.Vector3();
+
+function updateCamera(dt) {
+  const target=inCar?car:player;
+  const yaw=inCar?car.rotation.y:playerYaw;
+
+  const distance=inCar?12:9;
+  const height=inCar?6:5.4;
+
+  desiredCamera.set(
+    target.position.x-Math.sin(yaw)*distance,
+    target.position.y+height,
+    target.position.z+Math.cos(yaw)*distance
+  );
+
+  camera.position.lerp(
+    desiredCamera,1-Math.exp(-5*dt)
+  );
+
+  lookAtTarget.set(
+    target.position.x,
+    target.position.y+(inCar?1.6:1.7),
+    target.position.z
+  );
+
+  camera.lookAt(lookAtTarget);
+}
+
+/* ---------------- GAME LOOP ---------------- */
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt=Math.min(clock.getDelta(),0.035);
+
+  if(inCar) {
+    moveCar(dt);
+  } else {
+    moveOnFoot(dt);
+  }
+
+  /* Enter/exit proximity hint */
+
+  if(!inCar && distance2D(player.position,car.position)<5.5) {
+    $("enterBtn").textContent="🚗 ENTER CAR";
+  }
+
+  /* Traffic along the main corridor */
+
+  for(const v of trafficCars) {
+    if(!trafficOn) continue;
+
+    v.mesh.position.z+=v.direction*v.speed*dt;
+
+    if(v.mesh.position.z<-1000) {
+      v.mesh.position.z=30+Math.random()*80;
+    }
+
+    if(v.mesh.position.z>100) {
+      v.mesh.position.z=-950-Math.random()*50;
+    }
+  }
+
+  for(const p of pedestrians) {
+    const t=clock.elapsedTime;
+
+    p.mesh.position.x=p.homeX+Math.sin(t*0.4+p.phase)*0.8;
+    p.mesh.position.z=p.homeZ+Math.cos(t*0.3+p.phase)*1.0;
+  }
+
+  updateCamera(dt);
+  updateLocation();
+
+  renderer.render(scene,camera);
+}
+
+/* ---------------- RESIZE / START ---------------- */
+
+window.addEventListener("resize",()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+});
+
+$("loading").style.display="none";
+$("location").textContent="General Post Office";
+
+player.position.set(0,0,35);
+playerYaw=0;
+cameraYaw=0;
+
+animate();
+
+</script>
+</body>
+</html>
