@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1, maximum-scale=1,
+user-scalable=no, viewport-fit=cover">
+
+<title>Naija Streets - Ilorin V8</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #8cc8ed;
+  font-family: Arial, sans-serif;
+  touch-action: none;
+  user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#hud {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 12px;
+  z-index: 5;
+  color: white;
+  background: rgba(0,0,0,.72);
+  padding: 10px 13px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  pointer-events: none;
+  border: 1px solid rgba(255,255,255,.2);
+}
+
+#brand {
+  font-size: 15px;
+  font-weight: bold;
+  color: #ffda46;
+}
+
+#controllerLabel {
+  position: fixed;
+  left: 24px;
+  bottom: calc(174px + env(safe-area-inset-bottom));
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  text-shadow: 0 2px 5px black;
+  pointer-events: none;
+  z-index: 8;
+}
+
+#joystick {
+  position: fixed;
+  z-index: 10;
+  left: 22px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  background: rgba(20, 27, 34, .56);
+  border: 3px solid rgba(255,255,255,.75);
+  box-shadow: 0 4px 18px rgba(0,0,0,.4);
+  touch-action: none;
+}
+
+#joystick::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(255,255,255,.06);
+}
+
+#knob {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: linear-gradient(#fafafa, #aeb8c3);
+  border: 3px solid white;
+  box-shadow: 0 3px 10px rgba(0,0,0,.45);
+  pointer-events: none;
+}
+
+#tip {
+  position: fixed;
+  bottom: calc(190px + env(safe-area-inset-bottom));
+  right: 12px;
+  max-width: 155px;
+  color: white;
+  background: rgba(0,0,0,.58);
+  border-radius: 10px;
+  padding: 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+#buttons {
+  position: fixed;
+  right: 12px;
+  top: max(12px, env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 12;
+}
+
+.gameButton {
+  border: 1px solid rgba(255,255,255,.65);
+  background: rgba(0,0,0,.68);
+  color: white;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: bold;
+  touch-action: manipulation;
+}
+
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: #172b37;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 25px;
+  line-height: 1.7;
+}
+
+@media (max-width: 380px) {
+  #joystick {
+    width: 132px;
+    height: 132px;
+    left: 15px;
+  }
+
+  #knob {
+    width: 54px;
+    height: 54px;
+  }
+
+  #controllerLabel {
+    left: 18px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div id="game"></div>
+
+<div id="hud">
+  <div id="brand">🇳🇬 NAIJA STREETS V8</div>
+  <div>📍 <span id="location">Ilorin General Post Office</span></div>
+  <div>💵 Cash: ₦25,000</div>
+  <div>⭐ Respect: 0</div>
+  <div>🚶 Status: <span id="status">Ready</span></div>
+</div>
+
+<div id="buttons">
+  <button class="gameButton" id="mapButton">📍 LOCATION</button>
+  <button class="gameButton" id="trafficButton">🚗 TRAFFIC: ON</button>
+</div>
+
+<div id="controllerLabel">MOVE & TURN</div>
+
+<div id="joystick">
+  <div id="knob"></div>
+</div>
+
+<div id="tip">
+  ⬆ Forward<br>
+  ⬇ Backward<br>
+  ⬅ Turn left<br>
+  ➡ Turn right<br>
+  Camera follows you automatically.
+</div>
+
+<div id="loading">
+  <div>
+    <h2>🇳🇬 NAIJA STREETS</h2>
+    <p>Loading Ilorin City...</p>
+    <p style="font-size:12px">
+      Building roads, shops, traffic and the city environment.
+    </p>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+/* =====================================================
+   NAIJA STREETS V8
+   Automatic follow camera.
+   Left-bottom joystick.
+   No camera swiping required.
+===================================================== */
+
+const game = document.getElementById("game");
+const loading = document.getElementById("loading");
+const locationText = document.getElementById("location");
+const statusText = document.getElementById("status");
+const knob = document.getElementById("knob");
+const joystick = document.getElementById("joystick");
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8bc8ef);
+scene.fog = new THREE.Fog(0x8bc8ef, 100, 700);
+
+const camera = new THREE.PerspectiveCamera(
+  65,
+  innerWidth / innerHeight,
+  0.1,
+  1200
+);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: "high-performance"
+});
+
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = false;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+game.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xd9efff, 0x66543a, 2.0));
+
+const sun = new THREE.DirectionalLight(0xfff0cf, 2.2);
+sun.position.set(-100, 160, 60);
+scene.add(sun);
+
+/* ---------- MATERIALS ---------- */
+
+function material(color, roughness = 0.9) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness
+  });
+}
+
+const mats = {
+  grass: material(0x62894b),
+  road: material(0x34383d),
+  sidewalk: material(0xaaa79e),
+  white: material(0xf4f1df),
+  yellow: material(0xffd12c),
+  concrete: material(0x8d8b85),
+  dark: material(0x303239),
+  glass: new THREE.MeshStandardMaterial({
+    color: 0x78b9d5,
+    metalness: 0.2,
+    roughness: 0.25
+  }),
+  green: material(0x287a42),
+  red: material(0xc82f27),
+  blue: material(0x2768b0),
+  orange: material(0xe77d23)
+};
+
+/* ---------- BASIC OBJECT HELPERS ---------- */
+
+function box(parent, w, h, d, mat, x, y, z) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    mat
+  );
+
+  mesh.position.set(x, y + h / 2, z);
+  parent.add(mesh);
+  return mesh;
+}
+
+function cylinder(parent, radiusTop, radiusBottom, height,
+                  mat, x, y, z, segments = 10) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      radiusTop, radiusBottom, height, segments
+    ),
+    mat
+  );
+
+  mesh.position.set(x, y + height / 2, z);
+  parent.add(mesh);
+  return mesh;
+}
+
+function labelTexture(text, background, foreground = "#ffffff") {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 128;
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = foreground;
+  ctx.font = "bold 42px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  ctx.fillText(text, 256, 64, 490);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function sign(parent, text, x, y, z, w, h, background, foreground) {
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({
+      map: labelTexture(text, background, foreground),
+      side: THREE.DoubleSide
+    })
+  );
+
+  mesh.position.set(x, y, z);
+  parent.add(mesh);
+  return mesh;
+}
+
+/* ---------- GROUND AND MAIN ROAD ---------- */
+
+box(scene, 1600, 0.4, 1600, mats.grass, 0, -0.45, 0);
+
+const roadWidth = 20;
+const roadLength = 1450;
+
+box(scene, roadWidth, 0.12, roadLength,
+    mats.road, 0, 0, -roadLength / 2 + 100);
+
+box(scene, 2.2, 0.14, roadLength,
+    mats.sidewalk, -11.1, 0, -roadLength / 2 + 100);
+
+box(scene, 2.2, 0.14, roadLength,
+    mats.sidewalk, 11.1, 0, -roadLength / 2 + 100);
+
+/* Centre line and lane markings */
+
+for (let z = 25; z > -1350; z -= 13) {
+  box(scene, 0.17, 0.025, 6,
+      mats.yellow, 0, 0.075, z);
+}
+
+for (const x of [-5, 5]) {
+  for (let z = 25; z > -1350; z -= 15) {
+    box(scene, 0.11, 0.025, 5,
+        mats.white, x, 0.075, z);
+  }
+}
+
+/* Roadside drainage */
+
+for (const x of [-12.5, 12.5]) {
+  box(scene, 0.6, 0.08, roadLength,
+      mats.dark, x, 0.02, -roadLength / 2 + 100);
+}
+
+/* Side streets */
+
+function sideStreet(x, z, width = 32, length = 75) {
+  box(scene, width, 0.1, length, mats.road,
+      x, 0.02, z);
+
+  for (let dz = -length / 2 + 6; dz < length / 2; dz += 12) {
+    box(scene, 0.15, 0.025, 5, mats.white,
+        x, 0.085, z + dz);
+  }
+}
+
+for (const z of [-85, -180, -300, -430, -570, -720, -890, -1080]) {
+  sideStreet(-34, z, 44, 70);
+  sideStreet(34, z, 44, 70);
+}
+
+/* ---------- NIGERIAN BUILDINGS ---------- */
+
+const shopNames = [
+  "MTN", "AIRTEL", "GLO", "UBA", "FIRST BANK",
+  "FCMB", "ACCESS BANK", "BET9JA", "POS AVAILABLE",
+  "PHONE ACCESSORIES", "FASHION HOUSE", "SUPERMARKET",
+  "PROVISION STORE", "PHARMACY", "ELECTRONICS",
+  "BARBER SHOP", "RESTAURANT", "BAKERY",
+  "FROZEN FOODS", "BUILDING MATERIALS", "BOUTIQUE",
+  "COMPUTER CENTRE", "HOTEL", "EATERIES",
+  "MAMTESS SUPERMARKET", "CHARIS SHOPPING COMPLEX",
+  "KILIMANJARO", "SOLUDERO BUS TERMINAL",
+  "MOTOR SPARE PARTS", "ILORIN BUSINESS CENTRE"
+];
+
+const shopColors = [
+  "#bd2626", "#08773a", "#1853a1", "#e0a322",
+  "#542a82", "#d65b17", "#263238", "#087c85"
+];
+
+function makeBuilding(x, z, index, type = "shop") {
+  const group = new THREE.Group();
+
+  const width = type === "shop" ? 8 + Math.random() * 4
+                                : 10 + Math.random() * 7;
+
+  const height = type === "shop" ? 5 + Math.random() * 5
+                                 : 10 + Math.random() * 15;
+
+  const depth = type === "shop" ? 9 + Math.random() * 4
+                                : 12 + Math.random() * 7;
+
+  const wallColors = [
+    0xe3c8a1, 0xd7d5c8, 0xc5b5a0, 0xd8c5a5,
+    0xb9c4bd, 0xe7ded0, 0xd6bba0, 0xc7c6bd
+  ];
+
+  const wall = material(
+    wallColors[Math.floor(Math.random() * wallColors.length)]
+  );
+
+  box(group, width, height, depth, wall, 0, 0, 0);
+
+  /* Flat Nigerian-style roof */
+  box(group, width + 0.5, 0.3, depth + 0.5,
+      mats.concrete, 0, height, 0);
+
+  /* Front windows and doors */
+  const frontZ = depth / 2 + 0.025;
+
+  for (let wx = -width / 2 + 1.4; wx < width / 2 - 0.7; wx += 2.5) {
+    if (height > 7) {
+      for (let wy = 2.4; wy < height - 1; wy += 3) {
+        box(group, 1.15, 1.5, 0.08,
+            mats.glass, wx, wy, frontZ);
+      }
+    } else {
+      box(group, 1.25, 2.2, 0.12,
+          mats.dark, wx, 0.2, frontZ + 0.02);
+    }
+  }
+
+  if (type === "shop") {
+    const name = shopNames[index % shopNames.length];
+    const bg = shopColors[index % shopColors.length];
+
+    box(group, width + 0.1, 1.2, 0.2,
+        mats.dark, 0, Math.min(height - 1.4, 4.4), frontZ + 0.12);
+
+    sign(
+      group,
+      name,
+      0,
+      Math.min(height - 0.8, 5),
+      frontZ + 0.24,
+      width - 0.35,
+      0.9,
+      bg,
+      "#ffffff"
+    );
+  }
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+
+  return group;
+}
+
+/* Busy commercial area around the Post Office and Challenge */
+
+let buildingCount = 0;
+
+for (let z = -20; z > -330; z -= 15) {
+  makeBuilding(-19 - Math.random() * 2, z, buildingCount++, "shop");
+  makeBuilding(19 + Math.random() * 2, z - 5, buildingCount++, "shop");
+}
+
+/* Residential and mixed-use areas farther along the road */
+
+for (let z = -345; z > -1350; z -= 24) {
+  makeBuilding(-25 - Math.random() * 10, z, buildingCount++,
+               Math.random() > 0.55 ? "shop" : "house");
+
+  makeBuilding(25 + Math.random() * 10, z - 9, buildingCount++,
+               Math.random() > 0.6 ? "shop" : "house");
+}
+
+/* ---------- RECOGNISABLE LANDMARK SIGNS ---------- */
+
+function landmark(text, z, color) {
+  const group = new THREE.Group();
+
+  box(group, 15, 6, 0.7, material(color), 0, 5, 0);
+
+  sign(group, text, 0, 8, 0.42, 14, 2.2,
+       color, "#ffffff");
+
+  cylinder(group, 0.25, 0.25, 5,
+           mats.concrete, -5.5, 0, 0);
+
+  cylinder(group, 0.25, 0.25, 5,
+           mats.concrete, 5.5, 0, 0);
+
+  group.position.set(0, 0, z);
+  scene.add(group);
+}
+
+landmark("GENERAL POST OFFICE - ILORIN", -20, "#14572e");
+landmark("CHALLENGE - ILORIN", -150, "#bb2525");
+landmark("A-DIVISION POLICE STATION", -330, "#173c83");
+landmark("OFFA GARAGE", -540, "#d46a18");
+landmark("OLUNLADE", -850, "#247343");
+
+/* ---------- PETROL STATIONS ---------- */
+
+function petrolStation(x, z, brand, color) {
+  const group = new THREE.Group();
+
+  box(group, 20, 0.2, 25, mats.sidewalk, 0, 0, 0);
+
+  /* Canopy */
+  box(group, 15, 0.5, 10, material(color),
+      0, 5, -2);
+
+  for (const px of [-6, 0, 6]) {
+    box(group, 0.35, 4.8, 0.35,
+        mats.white, px, 0.2, -2);
+  }
+
+  for (const px of [-4.5, 0, 4.5]) {
+    box(group, 1.4, 2.3, 1.4,
+        material(0xf1e8d5), px, 0.2, 1);
+
+    box(group, 0.8, 0.6, 0.1,
+        material(0x252525), px, 1.35, 1.76);
+  }
+
+  box(group, 9, 3.2, 6, material(0xe0d5be),
+      0, 0.2, -10);
+
+  sign(group, brand, 0, 2.5, -6.85,
+       8.4, 1.2, color, "#ffffff");
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+}
+
+petrolStation(-35, -75, "TOTALENERGIES", "#d62828");
+petrolStation(37, -235, "BOVAS", "#08763c");
+petrolStation(-37, -410, "CONOIL", "#184b9a");
+petrolStation(37, -650, "NNPC", "#167541");
+
+/* ---------- STREETLIGHTS AND TREES ---------- */
+
+function tree(x, z) {
+  cylinder(scene, 0.25, 0.38, 3.5,
+           material(0x71502d), x, 0, z);
+
+  const crown = new THREE.Mesh(
+    new THREE.SphereGeometry(2.1, 8, 7),
+    material(0x2d7437)
+  );
+
+  crown.position.set(x, 4.5, z);
+  scene.add(crown);
+}
+
+function streetlight(x, z) {
+  cylinder(scene, 0.08, 0.13, 7,
+           mats.dark, x, 0, z);
+
+  const arm = box(scene, 2, 0.1, 0.1,
+                  mats.dark, x + (x < 0 ? 0.8 : -0.8), 6.8, z);
+
+  const bulb = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 8, 8),
+    material(0xffe5a2)
+  );
+
+  bulb.position.set(x + (x < 0 ? 1.6 : -1.6), 6.65, z);
+  scene.add(bulb);
+}
+
+for (let z = 20; z > -1350; z -= 28) {
+  streetlight(-13.5, z);
+  streetlight(13.5, z);
+
+  if (Math.random() > 0.25) {
+    tree(-18 - Math.random() * 4, z - 10);
+    tree(18 + Math.random() * 4, z - 17);
+  }
+}
+
+/* ---------- FLYOVERS ---------- */
+
+function flyover(z) {
+  const group = new THREE.Group();
+
+  /* Main elevated deck */
+  box(group, 25, 0.7, 35, mats.concrete, 0, 5, 0);
+
+  /* Side safety barriers */
+  box(group, 0.6, 1.1, 35, mats.sidewalk, -12, 5.4, 0);
+  box(group, 0.6, 1.1, 35, mats.sidewalk, 12, 5.4, 0);
+
+  /* Supports */
+  for (const x of [-9, 9]) {
+    for (const dz of [-10, 10]) {
+      box(group, 1.3, 5, 1.3,
+          mats.concrete, x, 0, dz);
+    }
+  }
+
+  /* Approaching ramps */
+  const rampMat = material(0x55585b);
+
+  for (const side of [-1, 1]) {
+    const ramp = box(
+      group, 8, 0.4, 23,
+      rampMat, side * 6, 2.4, side * 27
+    );
+
+    ramp.rotation.x = side === -1 ? -0.20 : 0.20;
+  }
+
+  group.position.set(0, 0, z);
+  scene.add(group);
+}
+
+flyover(-5);
+flyover(-340);
+
+/* ---------- PLAYER CHARACTER ---------- */
+
+const player = new THREE.Group();
+scene.add(player);
+
+const skinMat = material(0x8e5737);
+const shirtMat = material(0x2277a5);
+const trouserMat = material(0x242a33);
+const shoeMat = material(0x151515);
+
+const body = new THREE.Group();
+player.add(body);
+
+cylinder(body, 0.38, 0.45, 1.15,
+         shirtMat, 0, 0.85, 0, 12);
+
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(0.32, 12, 10),
+  skinMat
+);
+head.position.set(0, 2.2, 0);
+body.add(head);
+
+const hair = new THREE.Mesh(
+  new THREE.SphereGeometry(0.33, 12, 8),
+  material(0x171412)
+);
+hair.position.set(0, 2.4, 0);
+body.add(hair);
+
+/* Face direction marker */
+box(body, 0.12, 0.12, 0.16,
+    material(0xffffff), 0, 2.17, -0.29);
+
+const arms = [];
+
+for (const side of [-1, 1]) {
+  const arm = cylinder(
+    body, 0.13, 0.16, 0.85,
+    skinMat, side * 0.48, 0.8, 0, 8
+  );
+
+  arm.rotation.z = side * -0.13;
+  arms.push(arm);
+
+  const leg = cylinder(
+    body, 0.17, 0.19, 0.78,
+    trouserMat, side * 0.2, 0.05, 0, 8
+  );
+
+  box(body, 0.27, 0.15, 0.42,
+      shoeMat, side * 0.2, 0.05, -0.12);
+}
+
+player.position.set(0, 0, 5);
+
+/* ---------- TRAFFIC ---------- */
+
+const cars = [];
+let trafficEnabled = true;
+
+function makeCar(x, z, color, direction = -1) {
+  const car = new THREE.Group();
+
+  box(car, 2.05, 0.75, 4.1,
+      material(color), 0, 0.6, 0);
+
+  box(car, 1.55, 0.75, 1.9,
+      mats.glass, 0, 1.32, -0.15);
+
+  for (const wx of [-0.95, 0.95]) {
+    for (const wz of [-1.35, 1.35]) {
+      cylinder(car, 0.33, 0.33, 0.22,
+               mats.dark, wx, 0.2, wz, 10)
+        .rotation.z = Math.PI / 2;
+    }
+  }
+
+  for (const hx of [-0.65, 0.65]) {
+    box(car, 0.35, 0.22, 0.08,
+        material(0xfff4c7), hx, 0.85, -2.08);
+
+    box(car, 0.35, 0.22, 0.08,
+        material(0xe82b24), hx, 0.85, 2.08);
+  }
+
+  car.position.set(x, 0, z);
+
+  if (direction === 1) {
+    car.rotation.y = Math.PI;
+  }
+
+  scene.add(car);
+
+  cars.push({
+    mesh: car,
+    direction,
+    speed: 8 + Math.random() * 8,
+    initialX: x
+  });
+}
+
+const carColors = [
+  0xe3e3e3, 0x191919, 0x9e2922, 0x225ea0,
+  0xd6b53d, 0xdddddd, 0x27703e
+];
+
+for (let i = 0; i < 26; i++) {
+  const lane = i % 2 === 0 ? -3 : 3;
+  const direction = i % 2 === 0 ? -1 : 1;
+  const z = -i * 42 - 25;
+
+  makeCar(
+    lane,
+    z,
+    carColors[i % carColors.length],
+    direction
+  );
+}
+
+/* ---------- PEDESTRIANS ---------- */
+
+const pedestrians = [];
+
+function makePedestrian(x, z, index) {
+  const person = new THREE.Group();
+
+  const shirtColors = [
+    0xb52f29, 0x1c6eac, 0xd7a52d,
+    0x34854c, 0xe5e1d6, 0x75439b
+  ];
+
+  const shirt = material(shirtColors[index % shirtColors.length]);
+
+  cylinder(person, 0.2, 0.24, 0.85,
+           shirt, 0, 0.7, 0, 8);
+
+  const pHead = new THREE.Mesh(
+    new THREE.SphereGeometry(0.19, 8, 7),
+    skinMat
+  );
+
+  pHead.position.y = 1.7;
+  person.add(pHead);
+
+  for (const side of [-1, 1]) {
+    cylinder(person, 0.08, 0.1, 0.65,
+             trouserMat, side * 0.12, 0.05, 0, 6);
+  }
+
+  person.position.set(x, 0, z);
+  scene.add(person);
+
+  pedestrians.push({
+    mesh: person,
+    startX: x,
+    startZ: z,
+    phase: Math.random() * 6.28,
+    speed: 0.25 + Math.random() * 0.45
+  });
+}
+
+for (let i = 0; i < 90; i++) {
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const x = side * (14 + Math.random() * 13);
+  const z = -Math.random() * 1100;
+
+  makePedestrian(x, z, i);
+}
+
+/* ---------- FIXED, AUTOMATIC FOLLOW CAMERA ---------- */
+
+/*
+  The camera follows the player from behind.
+  No screen dragging, swiping or camera touch controls.
+*/
+
+const cameraOffset = new THREE.Vector3(0, 6.8, 11.5);
+const lookOffset = new THREE.Vector3(0, 1.7, -2.0);
+
+const desiredCamera = new THREE.Vector3();
+const desiredLook = new THREE.Vector3();
+const lookTarget = new THREE.Vector3();
+
+camera.position.set(0, 8, 17);
+camera.lookAt(0, 1.5, 0);
+
+/* ---------- CONTROLLER: CORRECTED DIRECTIONS ---------- */
+
+let joyX = 0;
+let joyY = 0;
+let activePointer = null;
+
+const DEAD_ZONE = 0.12;
+const MAX_KNOB = 42;
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function updateJoystick(event) {
+  const rect = joystick.getBoundingClientRect();
+
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  let dx = event.clientX - centerX;
+  let dy = event.clientY - centerY;
+
+  const maxRadius = Math.min(rect.width, rect.height) * 0.34;
+  const length = Math.hypot(dx, dy);
+
+  if (length > maxRadius) {
+    dx = dx / length * maxRadius;
+    dy = dy / length * maxRadius;
+  }
+
+  knob.style.left = `calc(50% + ${dx}px)`;
+  knob.style.top = `calc(50% + ${dy}px)`;
+
+  joyX = clamp(dx / maxRadius, -1, 1);
+  joyY = clamp(dy / maxRadius, -1, 1);
+
+  if (Math.abs(joyX) < DEAD_ZONE) joyX = 0;
+  if (Math.abs(joyY) < DEAD_ZONE) joyY = 0;
+}
+
+function resetJoystick() {
+  joyX = 0;
+  joyY = 0;
+  activePointer = null;
+
+  knob.style.left = "50%";
+  knob.style.top = "50%";
+}
+
+joystick.addEventListener("pointerdown", event => {
+  event.preventDefault();
+
+  if (activePointer !== null) return;
+
+  activePointer = event.pointerId;
+
+  try {
+    joystick.setPointerCapture(event.pointerId);
+  } catch (error) {}
+
+  updateJoystick(event);
+});
+
+joystick.addEventListener("pointermove", event => {
+  if (event.pointerId !== activePointer) return;
+
+  event.preventDefault();
+  updateJoystick(event);
+});
+
+joystick.addEventListener("pointerup", event => {
+  if (event.pointerId === activePointer) {
+    resetJoystick();
+  }
+});
+
+joystick.addEventListener("pointercancel", resetJoystick);
+joystick.addEventListener("lostpointercapture", resetJoystick);
+
+/*
+  Direction convention:
+  joyY < 0 means push up = move forward.
+  joyY > 0 means pull down = move backward.
+  joyX < 0 means left = turn left.
+  joyX > 0 means right = turn right.
+*/
+
+const forward = new THREE.Vector3();
+const sideVector = new THREE.Vector3();
+
+const PLAYER_SPEED = 13;
+const REVERSE_SPEED = 7;
+const TURN_SPEED = 2.3;
+
+/* ---------- LOCATION LABELS ---------- */
+
+function updateLocation() {
+  const z = player.position.z;
+
+  let name = "Ilorin General Post Office";
+
+  if (z < -70) name = "Murtala Mohammed Way";
+  if (z < -120) name = "Challenge";
+  if (z < -280) name = "A-Division Police Station";
+  if (z < -450) name = "Offa Garage";
+  if (z < -700) name = "Ilorin Outskirts";
+  if (z < -820) name = "Olunlade";
+  if (z < -1050) name = "Road to Greater Ilorin";
+
+  locationText.textContent = name;
+}
+
+document.getElementById("mapButton").addEventListener("click", () => {
+  updateLocation();
+});
+
+document.getElementById("trafficButton").addEventListener("click", event => {
+  trafficEnabled = !trafficEnabled;
+
+  event.currentTarget.textContent =
+    trafficEnabled ? "🚗 TRAFFIC: ON" : "🚗 TRAFFIC: OFF";
+});
+
+/* ---------- GAME LOOP ---------- */
+
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.035);
+  const elapsed = clock.elapsedTime;
+
+  /* Turning: positive joystick X turns right.
+     Negative joystick X turns left. */
+
+  player.rotation.y += joyX * TURN_SPEED * dt;
+
+  /* Forward direction for the player's current facing angle */
+
+  const movingForward = joyY < -DEAD_ZONE;
+  const movingBackward = joyY > DEAD_ZONE;
+
+  let moveAmount = 0;
+
+  if (movingForward) {
+    moveAmount = (-joyY) * PLAYER_SPEED * dt;
+  } else if (movingBackward) {
+    moveAmount = (-joyY) * REVERSE_SPEED * dt;
+  }
+
+  forward.set(
+    Math.sin(player.rotation.y),
+    0,
+    -Math.cos(player.rotation.y)
+  );
+
+  player.position.addScaledVector(forward, moveAmount);
+
+  /* Keep player inside the playable city area */
+
+  player.position.x = clamp(player.position.x, -70, 70);
+  player.position.z = clamp(player.position.z, -1400, 30);
+
+  /* Gentle walking animation */
+
+  const walking = Math.abs(moveAmount) > 0.001;
+
+  body.position.y = walking
+    ? Math.abs(Math.sin(elapsed * 10)) * 0.06
+    : 0;
+
+  body.rotation.z = walking
+    ? Math.sin(elapsed * 5) * 0.025
+    : 0;
+
+  statusText.textContent = walking
+    ? (movingForward ? "Walking forward" : "Moving backward")
+    : (Math.abs(joyX) > 0 ? "Turning" : "Ready");
+
+  /* Automatic follow camera: no touch camera controls */
+
+  desiredCamera.copy(cameraOffset);
+  desiredCamera.applyAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    player.rotation.y
+  );
+
+  desiredCamera.add(player.position);
+
+  camera.position.lerp(desiredCamera, 1 - Math.exp(-5 * dt));
+
+  desiredLook.copy(lookOffset);
+  desiredLook.applyAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    player.rotation.y
+  );
+
+  desiredLook.add(player.position);
+
+  lookTarget.lerp(desiredLook, 1 - Math.exp(-7 * dt));
+  camera.lookAt(lookTarget);
+
+  /* Traffic moves along the road */
+
+  for (const car of cars) {
+    if (!trafficEnabled) continue;
+
+    car.mesh.position.z += car.direction * car.speed * dt;
+
+    if (car.mesh.position.z < -1400) {
+      car.mesh.position.z = 25 + Math.random() * 100;
+    }
+
+    if (car.mesh.position.z > 140) {
+      car.mesh.position.z = -1300 - Math.random() * 60;
+    }
+  }
+
+  /* Pedestrians walk near the shops */
+
+  for (const person of pedestrians) {
+    const phase = elapsed * person.speed + person.phase;
+
+    person.mesh.position.x =
+      person.startX + Math.sin(phase) * 1.2;
+
+    person.mesh.position.z =
+      person.startZ + Math.cos(phase * 0.7) * 1.5;
+
+    person.mesh.rotation.y =
+      Math.sin(phase) * 0.35;
+  }
+
+  updateLocation();
+
+  renderer.render(scene, camera);
+}
+
+/* ---------- RESIZE ---------- */
+
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+});
+
+/* ---------- START GAME ---------- */
+
+try {
+  loading.style.display = "none";
+  animate();
+} catch (error) {
+  loading.style.display = "flex";
+  loading.innerHTML =
+    "<div><h2>Game could not start</h2>" +
+    "<p>Please reload the page and check your internet connection.</p></div>";
+
+  console.error(error);
+}
+
+</script>
+</body>
+</html>
